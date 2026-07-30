@@ -98,7 +98,23 @@ export async function createBot(meetingUrl: string): Promise<{ bot_id: string }>
       meeting_url: meetingUrl,
       recording_config: {
         transcript: {
-          provider: { recallai_streaming: {} },
+          provider: {
+            recallai_streaming: {
+              // Recall defaults to `prioritize_accuracy`, which finalizes
+              // transcripts in long windows — measured events spanning 170s of
+              // speech, and ~2.2s minimum lag even for a short question. That
+              // delay is the single largest contributor to the agent feeling
+              // slow, and it happens before our code ever runs.
+              // `prioritize_low_latency` is the only other valid choice
+              // (verified by probing the API enum).
+              mode: 'prioritize_low_latency',
+              // Required: low latency mode rejects the default `auto`
+              // ("language_code other than english is not supported in low
+              // latency mode"). Switch back to prioritize_accuracy if you ever
+              // need non-English meetings.
+              language_code: 'en',
+            },
+          },
         },
         realtime_endpoints: [
           {

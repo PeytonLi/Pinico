@@ -34,7 +34,7 @@ export function getAuthUrl(): string {
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID not set');
 
   const redirectUri = `${process.env.APP_BASE_URL || 'http://localhost:3000'}/api/calendar/callback`;
-  const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events.readonly');
+  const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.readonly');
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
