@@ -9,7 +9,7 @@ tracks, file ownership, and the frozen contracts between them.
 ## Stack
 
 Next.js 16 (App Router, `src/`) · React 19 · Tailwind 4 · Auth0 SDK v4 ·
-Supabase (Postgres) · OpenAI structured outputs · Recall.ai · Stripe Billing meters
+Supabase (Postgres) · DeepSeek (`deepseek-v4-flash`) · Recall.ai · Stripe Billing meters
 
 ## Run it
 
@@ -27,8 +27,71 @@ pnpm dev
    *Allowed Callback URLs* to `http://localhost:3000/auth/callback` and
    *Allowed Logout URLs* to `http://localhost:3000`. Generate `AUTH0_SECRET`
    with `openssl rand -hex 32`.
-3. **Recall.ai / OpenAI / Jira / Stripe** — keys per `.env.example`. Only needed
-   once Track B starts; the app builds and runs without them.
+3. **Recall.ai / DeepSeek / Jira / Stripe** — keys per `.env.example`. Only
+   needed once Track B starts; the app builds and runs without them.
+4. **Jira** — see [Jira setup](#jira-setup) below.
+
+## Jira setup
+
+Four env vars. The token is a normal Atlassian API token used with Basic auth —
+no OAuth app, no Jira app install.
+
+**1. Get a project to write into.** In Jira, either use an existing project or
+create one (*Projects → Create project → Scrum or Kanban*, team-managed is
+fine). Note its **key** — the prefix on its issues, e.g. `DEV` in `DEV-104`.
+
+```env
+JIRA_HOST_NAME="your-domain.atlassian.net"   # no https://, no trailing slash
+JIRA_PROJECT_KEY="DEV"
+```
+
+**2. Create an API token** at
+<https://id.atlassian.com/manage-profile/security/api-tokens> → *Create API
+token*. Give it any label and copy the value — it is shown once.
+
+```env
+JIRA_USER_EMAIL="you@example.com"   # the account that owns the token
+JIRA_API_TOKEN="<paste>"
+```
+
+`JIRA_USER_EMAIL` must be the exact Atlassian account email for that token. A
+mismatch gives a confusing `401` even though the token is valid. Tickets will be
+created *as* this user.
+
+**3. Pick the issue type that exists in your project.** This is the most common
+cause of a `400` on first run: many projects have no `Bug` type.
+
+```env
+JIRA_ISSUE_TYPE="Task"
+```
+
+Check what's actually available with:
+
+```bash
+curl -s -u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" \
+  "https://$JIRA_HOST_NAME/rest/api/3/issue/createmeta?projectKeys=$JIRA_PROJECT_KEY&expand=projects.issuetypes.fields" \
+  | grep -o '"name":"[^"]*"' | head -20
+```
+
+**4. Verify with one real ticket** before trusting the pipeline:
+
+```bash
+curl -s -u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" \
+  -X POST "https://$JIRA_HOST_NAME/rest/api/3/issue" \
+  -H 'Content-Type: application/json' \
+  -d '{"fields":{"project":{"key":"'"$JIRA_PROJECT_KEY"'"},"summary":"Pinico smoke test","issuetype":{"name":"'"$JIRA_ISSUE_TYPE"'"},"description":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"hello"}]}]}}}'
+```
+
+A `201` with `{"id":...,"key":"DEV-1",...}` means the pipeline will work. Delete
+the test issue afterwards.
+
+### Two gotchas already handled in `src/lib/jira.ts`
+
+- **`description` must be ADF**, not a plain string — the `/rest/api/3/` API
+  rejects strings. That's why the curl above nests `type: "doc"`.
+- **`priority` is often not on a project's create screen**, which returns
+  `400 Field 'priority' cannot be set`. The code retries once without it and
+  folds the priority into the summary instead, so this self-heals.
 
 Auth routes are mounted by `src/proxy.ts`, not by a route handler:
 `/auth/login`, `/auth/logout`, `/auth/callback`.

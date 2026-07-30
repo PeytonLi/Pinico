@@ -8,12 +8,11 @@ export default async function Home() {
       {/* Hero */}
       <section className="flex flex-col items-center justify-center px-6 py-24 text-center">
         <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-          The{' '}
           <span className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            $60,000
-          </span>{' '}
-          Standup
+            Pinico
+          </span>
         </h1>
+        <p className="mt-2 text-lg font-medium text-foreground/40">by Peyton Li</p>
         <p className="mt-6 max-w-xl text-lg text-foreground/70 leading-relaxed">
           The average 10-person engineering team burns over $60K a year on
           standups. Pinico sends an AI bot instead — spoken blockers become

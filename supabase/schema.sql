@@ -49,3 +49,21 @@ CREATE TABLE tickets (
 );
 
 CREATE UNIQUE INDEX tickets_dedupe ON tickets (meeting_id, dedupe_key);
+
+-- ---- V2 additions (HANDOFF-V2.md §6) ----
+
+-- Agent context — what the bot knows about the user it represents.
+CREATE TABLE agent_context (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id) UNIQUE,
+  current_work TEXT NOT NULL DEFAULT '',
+  active_blockers TEXT DEFAULT '',
+  recent_wins TEXT DEFAULT '',
+  communication_style TEXT DEFAULT 'Direct and professional',
+  delegation_instructions TEXT DEFAULT '',
+  topics_to_track TEXT DEFAULT '',
+  questions_for_team TEXT DEFAULT '',
+  meeting_goal TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);

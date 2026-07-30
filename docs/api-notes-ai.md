@@ -1,13 +1,40 @@
-# API notes — OpenAI + Jira (Track B / B-ai)
+# API notes — LLM + Jira (Track B / B-ai)
 
-No live credentials were available while writing `src/lib/openai.ts` and
-`src/lib/jira.ts`. Nothing below was curled against a real account — it's
-confirmed against official docs and, for OpenAI, against the exact TypeScript
-types shipped in `node_modules/openai@7.2.0`, which is ground truth for the
-request shape this codebase will actually send. Whoever gets credentials
-first should do the real `curl` HANDOFF.md §B1 asks for and update this file.
+No live credentials were available while writing these modules. Nothing below
+was curled against a real account — it's confirmed against official docs and
+the TypeScript types shipped in `node_modules/openai@7.2.0`. Whoever gets
+credentials first should do the real `curl` HANDOFF.md §B1 asks for and update
+this file.
 
-## OpenAI — Structured Outputs (`src/lib/openai.ts`)
+---
+
+## ⚠️ SUPERSEDED: the provider is now DeepSeek, not OpenAI
+
+`src/lib/openai.ts` no longer exists. It is **`src/lib/llm.ts`**, calling
+DeepSeek through the OpenAI-compatible endpoint (`https://api.deepseek.com`)
+with the same `openai` npm SDK, model `deepseek-v4-flash`.
+
+**The consequential difference:** DeepSeek does **not** support
+`response_format: {type: 'json_schema', strict: true}` — it rejects it as
+"unavailable now". Only JSON mode (`{type: 'json_object'}`) is available on the
+stable endpoint. There is a strict-schema beta, but it constrains *tool-call
+arguments* only and needs a separate beta base URL.
+
+JSON mode guarantees syntactically valid JSON and **nothing about fields,
+required keys, or enums**. So schema enforcement moved client-side into
+`parseBlockerResponse()` in `llm.ts`, validated by zod and covered by
+`src/lib/llm.test.ts`. Two requirements from DeepSeek's docs are load-bearing
+in the prompt and must not be edited away: the literal word "json", and an
+example of the desired object. Without them the API can return empty content.
+
+Docs: https://api-docs.deepseek.com/guides/json_mode
+
+The OpenAI section below is kept only as the record of what the strict-mode
+request looked like, in case the provider is ever switched back.
+
+---
+
+## OpenAI — Structured Outputs (historical; file removed)
 
 Docs: https://developers.openai.com/api/docs/guides/structured-outputs
 Also verified directly against `node_modules/openai/resources/shared.d.ts`

@@ -1,5 +1,7 @@
 // Shared contracts between Track A (product surface) and Track B (bot pipeline).
-// FROZEN after Phase 0 — changing anything here requires both agents to agree.
+// Change process: propose in handoff, both agents agree, then edit.
+
+// ---- V1 types (frozen) ----
 
 export type Profile = {
   id: string;
@@ -40,4 +42,53 @@ export type ExtractedBlocker = {
   reported_by: string;
   suggested_assignee: string;
   priority: 'Highest' | 'High' | 'Medium' | 'Low';
+};
+
+// ---- V2 types (agreed per HANDOFF-V2.md §3) ----
+
+/** Agent persona — built from user-submitted context before the meeting. */
+export type Persona = {
+  user_name: string;
+  user_role: string;
+  current_work: string;
+  active_blockers: string;
+  recent_wins: string;
+  communication_style: string;
+  delegation_instructions: string;
+  topics_to_track: string;
+  questions_for_team: string;
+  meeting_goal: string;
+  raw_context: string;
+};
+
+/** One turn in the meeting conversation. */
+export type ConversationTurn = {
+  speaker: string;
+  text: string;
+  timestamp: string;
+};
+
+/** Agent's decision after processing a transcript segment. */
+export type AgentAction = {
+  should_speak: boolean;
+  message: string;
+  thinking: string;
+  blocker: {
+    found: boolean;
+    summary: string;
+    description: string;
+    priority: 'Highest' | 'High' | 'Medium' | 'Low';
+  };
+};
+
+/** POST /api/context request body */
+export type ContextRequest = {
+  current_work: string;
+  active_blockers?: string;
+  recent_wins?: string;
+  communication_style?: string;
+  delegation_instructions?: string;
+  topics_to_track?: string;
+  questions_for_team?: string;
+  meeting_goal?: string;
 };

@@ -145,7 +145,7 @@ Hard boundaries. Do not cross them.
 | `src/components/**` | **A** |
 | `src/app/globals.css` (Tailwind 4 has no config file) | **A** |
 | `src/lib/recall.ts` | **B** |
-| `src/lib/openai.ts` | **B** |
+| `src/lib/llm.ts` (was `openai.ts` — provider is DeepSeek now) | **B** |
 | `src/lib/jira.ts` | **B** |
 | `src/lib/extract.ts` (buffer + dedupe logic) | **B** |
 | `src/app/api/bot/dispatch/**` | **B** |
@@ -250,7 +250,7 @@ getBotDuration(botId: string): Promise<number>  // minutes, for billing
 ```
 `createBot` registers the webhook at `${NEXT_PUBLIC_APP_URL}/api/webhooks/recall` with `RECALL_WEBHOOK_SECRET` as a query param or header. **You need a public URL** — start an ngrok/cloudflared tunnel early and set `NEXT_PUBLIC_APP_URL` to it. Localhost cannot receive webhooks. This bites people at hour 3.
 
-### B3 — `src/lib/openai.ts`
+### B3 — `src/lib/llm.ts` (⚠️ provider changed to DeepSeek — see §7)
 Structured extraction per PRD §5.4, with one correction: **under `strict: true`, every property must be listed in `required`.** The PRD's schema lists only 4 of 6 and will fail. Make all six required and instruct the model to return `""` for unknown `reported_by` / `suggested_assignee`.
 
 Feed the model the day's `async_updates` as context alongside the transcript segment, so it can attribute a blocker to someone who isn't in the room. That's the actual product thesis — don't drop it.
@@ -310,6 +310,7 @@ Fix these; don't copy them.
 | PRD says | Reality |
 |---|---|
 | `pnpm add @openai/openai-api` | Package is `openai`. **Confirmed in Phase 0.** |
+| OpenAI `gpt-4o` with strict `json_schema` structured outputs | **Provider is now DeepSeek** (`deepseek-v4-flash` via `https://api.deepseek.com`, still the `openai` SDK). DeepSeek rejects `json_schema`/`strict` — only `json_object` JSON mode exists. Schema enforcement is client-side zod in `parseBlockerResponse()`. The prompt's literal word "json" and its example object are required by DeepSeek; do not edit them out. |
 | Auth0 v3 (`handleAuth`, `UserProvider`, `AUTH0_ISSUER_BASE_URL`, `AUTH0_BASE_URL`) | Installed SDK is v4. Everything moves — see §1's "What Phase 0 actually built". **Confirmed in Phase 0.** |
 | `tailwind.config.ts` exists | Tailwind 4 configures in CSS. No such file. **Confirmed in Phase 0.** |
 | `pnpm create next-app pinico` in this repo | Fails: dir is `Pinico`, npm rejects capitals. Scaffolded in a temp lowercase dir and moved. **Already done.** |
