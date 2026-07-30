@@ -31,6 +31,8 @@ CREATE TABLE meetings (
   -- Last chunk arrival, so the extractor can detect a speech pause.
   last_chunk_at TIMESTAMP WITH TIME ZONE,
   stripe_customer_id TEXT,
+  -- Who dispatched this bot — needed for persona lookup in agent.ts
+  user_id UUID REFERENCES profiles(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

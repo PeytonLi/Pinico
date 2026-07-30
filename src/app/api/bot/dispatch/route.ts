@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       recall_bot_id: bot.bot_id,
       meeting_url,
       status: 'in_call',
+      user_id: profile.id,
       stripe_customer_id: process.env.STRIPE_DEMO_CUSTOMER_ID ?? null,
     })
     .select('id')

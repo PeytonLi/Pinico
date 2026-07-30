@@ -1,32 +1,25 @@
 import { getDb } from './supabase';
-import { extractBlocker } from './llm';
+import { processTranscript } from './agent';
 import { shouldFlush } from './buffer';
-import type { ExtractedBlocker } from './types';
 
 // shouldFlush/dedupeKey live in ./buffer so they stay unit-testable under
 // `node --test` (see the comment at the top of that file).
 export { shouldFlush, dedupeKey } from './buffer';
 
-type AsyncUpdateRow = {
-  status_text: string;
-  blockers_text: string | null;
-  profiles: { full_name: string | null; email: string } | { full_name: string | null; email: string }[] | null;
-};
-
-function formatUpdateRow(row: AsyncUpdateRow): string {
-  const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-  const name = profile?.full_name || profile?.email || 'unknown';
-  const blocker = row.blockers_text ? ` (blocker: ${row.blockers_text})` : '';
-  return `${name}: ${row.status_text}${blocker}`;
-}
-
 /**
- * Appends a transcript fragment to the meeting's buffer. Flushes (calls
- * OpenAI) and clears the buffer once shouldFlush() says so; otherwise just
- * persists the growing buffer and returns null. This is what stands between
- * Recall's continuous stream and hundreds of redundant OpenAI calls.
+ * Appends a transcript fragment to the meeting's buffer. Flushes (calls the
+ * full agent pipeline: persona → LLM → voice + chat + ticket) and clears the
+ * buffer once shouldFlush() says so; otherwise just persists the growing
+ * buffer and returns.
+ *
+ * V2 change: at flush time, calls processTranscript() which handles speaking,
+ * ticket creation, and dedupe — the webhook no longer does any of that itself.
  */
-export async function ingestChunk(meetingId: string, text: string): Promise<ExtractedBlocker | null> {
+export async function ingestChunk(
+  meetingId: string,
+  botId: string,
+  text: string,
+): Promise<void> {
   const db = getDb();
   const now = new Date();
 
@@ -47,21 +40,23 @@ export async function ingestChunk(meetingId: string, text: string): Promise<Extr
       .from('meetings')
       .update({ transcript_buffer: buffer, last_chunk_at: now.toISOString() })
       .eq('id', meetingId);
-    return null;
+    return;
   }
 
+  // Clear buffer before processing — agent pipeline is slow (LLM + TTS),
+  // and concurrent chunks shouldn't duplicate the same buffered text.
   await db
     .from('meetings')
     .update({ transcript_buffer: '', last_chunk_at: now.toISOString() })
     .eq('id', meetingId);
 
-  const today = now.toISOString().slice(0, 10);
-  const { data: updates } = await db
-    .from('async_updates')
-    .select('status_text, blockers_text, profiles:user_id(full_name, email)')
-    .eq('date', today);
-
-  const context = ((updates ?? []) as AsyncUpdateRow[]).map(formatUpdateRow).join('\n');
-
-  return extractBlocker(buffer, context);
+  // Agent pipeline handles speaking + tickets + dedupe internally.
+  // Wrap in try/catch — one failed turn must never kill the session.
+  try {
+    await processTranscript(meetingId, botId, buffer);
+  } catch (err) {
+    console.error('[extract] processTranscript failed:', err);
+    // Buffer was already cleared; the transcript segment is lost, but the
+    // bot session continues. This is the right trade-off for a demo.
+  }
 }

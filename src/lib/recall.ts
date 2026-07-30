@@ -1,4 +1,18 @@
-// Recall.ai API wrapper. Three functions, nothing more (§B2 of HANDOFF.md).
+// Recall.ai API wrapper. §B2 of HANDOFF-V2.md adds outputAudio() for voice.
+
+// Minimal valid silent MP3 (single frame, 128kbps 44100Hz stereo). Plays once
+// on bot join to satisfy Recall's automatic_audio_output config requirement —
+// enables the Output Audio endpoint for real speech later. The frame is ~26ms
+// of silence; meeting participants won't notice it.
+const SILENT_MP3_BASE64 = (() => {
+  // MPEG1 Layer3 frame header: sync(0xFFFB) | MPEG1+Layer3(0x02) | no CRC(0x00)
+  //                              128kbps(0x09) | 44100Hz(0x00) | stereo+no pad(0x00)
+  const header = Buffer.from([0xff, 0xfb, 0x90, 0x00]);
+  // Frame size for 128kbps 44100Hz: ceil(144 * 128000 / 44100) = 418 bytes
+  // One byte of padding → 417 bytes payload after the 4-byte header
+  const silence = Buffer.alloc(413, 0);
+  return Buffer.concat([header, silence]).toString('base64');
+})();
 //
 // Corrections vs the PRD/HANDOFF guesses — see docs/api-notes-recall.md for
 // doc URLs and full detail:
@@ -86,11 +100,6 @@ export async function createBot(meetingUrl: string): Promise<{ bot_id: string }>
       meeting_url: meetingUrl,
       recording_config: {
         transcript: {
-          // Recall's own streaming provider — no external transcription
-          // account needed. AMBIGUITY: docs don't show every option for this
-          // provider's config object inline; {} takes its defaults. If a
-          // live call needs e.g. a specific language, add
-          // `{ language_code: 'en' }` here — see docs/api-notes-recall.md.
           provider: { recallai_streaming: {} },
         },
         realtime_endpoints: [
@@ -100,6 +109,11 @@ export async function createBot(meetingUrl: string): Promise<{ bot_id: string }>
             events: ['transcript.data'],
           },
         ],
+      },
+      automatic_audio_output: {
+        in_call_recording: {
+          data: { kind: 'mp3', b64_data: SILENT_MP3_BASE64 },
+        },
       },
     }),
   })) as { id?: string } | null;
@@ -157,4 +171,17 @@ export async function getBotDuration(botId: string): Promise<number> {
 
   if (!Number.isFinite(minutes) || minutes < 0) return 0;
   return minutes;
+}
+
+/**
+ * POST /bot/{bot_id}/output_audio/ — makes the bot speak aloud in the meeting.
+ * Sends a base64-encoded MP3. The `automatic_audio_output` config in
+ * createBot() must be present for this endpoint to work.
+ */
+export async function outputAudio(botId: string, mp3Base64: string): Promise<void> {
+  const { base, key } = getConfig();
+  await recallFetch(base, key, `/bot/${encodeURIComponent(botId)}/output_audio/`, {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'mp3', b64_data: mp3Base64 }),
+  });
 }
