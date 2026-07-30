@@ -11,10 +11,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
 // Pure utilities from buffer.ts — testable without any mocks
-import { dedupeKey, shouldFlush } from '../lib/buffer';
+// Literal `.ts` specifiers: Node's native TS runner does no extension guessing.
+import { dedupeKey, shouldFlush } from './buffer.ts';
 
 // History management from agent.ts
-import { loadHistory, appendHistory } from '../lib/agent';
+import { loadHistory, appendHistory } from './history.ts';
 
 describe('dedupeKey', () => {
   it('normalizes whitespace', () => {

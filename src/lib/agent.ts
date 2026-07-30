@@ -5,6 +5,7 @@ import { textToSpeech } from './elevenlabs';
 import { outputAudio, sendChatMessage } from './recall';
 import { createJiraBlockerTicket } from './jira';
 import { dedupeKey } from './buffer';
+import { loadHistory, appendHistory } from './history';
 import type { AgentAction, ConversationTurn, ExtractedBlocker } from './types';
 
 /**
@@ -14,24 +15,9 @@ import type { AgentAction, ConversationTurn, ExtractedBlocker } from './types';
  * Persona + history + transcript → LLM → (voice | chat | ticket).
  */
 
-// ---- conversation history (in-memory, last-10 sliding window) ----
-// ponytail: in-memory sliding window. Upgrade to DB table if persistence is needed.
-const historyByMeeting = new Map<string, ConversationTurn[]>();
-const MAX_HISTORY = 10;
-
-function loadHistory(meetingId: string): ConversationTurn[] {
-  return historyByMeeting.get(meetingId) ?? [];
-}
-
-function appendHistory(meetingId: string, turn: ConversationTurn): void {
-  const current = loadHistory(meetingId);
-  current.push(turn);
-  if (current.length > MAX_HISTORY) current.shift();
-  historyByMeeting.set(meetingId, current);
-}
-
-// Re-export for extract.ts to use at flush time
-export { loadHistory, appendHistory };
+// Conversation history lives in ./history so it stays unit-testable under
+// `node --test` (see the comment at the top of that file).
+export { loadHistory, appendHistory } from './history';
 
 // ---- processTranscript ----
 
