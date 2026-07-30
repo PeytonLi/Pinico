@@ -4,13 +4,13 @@
 
 /* ---- Design Tokens ---- */
 :root {
-  --background: #ffffff;
+  --background: #fafafa;
   --foreground: #0f172a;
   --color-primary: #7c3aed;
-  --color-primary-soft: #f5f0ff;
+  --color-primary-soft: #f4f0ff;
   --color-secondary: #6366f1;
   --color-accent: #ec4899;
-  --color-muted: #f8f7fc;
+  --color-muted: #f5f4f7;
   --color-border: #e8e4f0;
   --color-surface: #ffffff;
   --font-display: 'Space Grotesk', sans-serif;
@@ -31,22 +31,15 @@
   --font-sans: var(--font-body);
 }
 
-/* ---- Dark Mode ---- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #13111c;
-    --foreground: #e4e0f0;
-    --color-primary-soft: #2a2048;
-    --color-muted: #1a1728;
-    --color-border: #2a2540;
-    --color-surface: #1a1728;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body);
+}
+
+/* Clickable elements get pointer cursor */
+a, button, [role="button"], input[type="submit"], input[type="checkbox"], input[type="radio"], select, .clickable {
+  cursor: pointer;
 }
 
 /* ---- Animations ---- */
