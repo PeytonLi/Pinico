@@ -47,3 +47,9 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+
+# agent / IDE config
+.agents/
+.claude/
+.cursor/
+.cursorignore
