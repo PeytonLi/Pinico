@@ -176,7 +176,7 @@ Rules:
 const ACTION_BLOCKER_SHAPE = `{
   "should_speak": true,
   "message": "Short spoken response under 2 sentences.",
-  "thinking": "Internal reasoning about why I'm speaking or staying silent.",
+  "thinking": "ONE short clause, max 12 words. Never longer.",
   "blocker": {
     "found": true,
     "summary": "One-line blocker description",
@@ -251,10 +251,19 @@ export async function runAgentTurn(
       },
     ],
     response_format: { type: 'json_object' },
-    max_tokens: 500,
+    // 500 was too low and silently broke the agent in a live meeting: the model
+    // spent the budget narrating `thinking`, the JSON was cut off mid-string,
+    // JSON.parse threw, and a perfectly good spoken answer was discarded.
+    // Truncation is the most likely failure of json_object mode — leave headroom.
+    max_tokens: 1200,
   });
 
   const content = completion.choices[0]?.message?.content?.trim() ?? '';
+  const finish = completion.choices[0]?.finish_reason;
+  if (finish === 'length') {
+    // Makes the above failure obvious instead of looking like bad JSON.
+    console.error('[llm] runAgentTurn: response TRUNCATED (finish_reason=length)');
+  }
   if (!content) {
     console.error('[llm] runAgentTurn: empty response');
     return NOOP_ACTION;
