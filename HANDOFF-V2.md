@@ -1,11 +1,11 @@
-# Pinico V2 — Agentic Standup Bot
+# Pinico V2 — Agentic Standup Bot (with Voice)
 
-**Pivot from silent listener → AI agent that represents you in meetings.**
+**Pivot from silent listener → AI voice agent that represents you in meetings.**
 
-V1 (current `main`): bot joins, listens, extracts blockers, creates Jira tickets.
-V2 (this handoff): bot joins, **has your context**, **answers questions on your behalf**, **speaks in chat**, still creates tickets.
+V1 (current `main`): bot joins, listens, extracts blockers, creates Jira tickets, posts chat link.
+V2 (this handoff): bot joins, **has your context**, **speaks with a real voice**, **answers questions on your behalf**, still creates tickets. Voice via ElevenLabs TTS → Recall Output Audio.
 
-The infra is the same (Auth0, Supabase, Stripe, Recall.ai, Jira, OpenAI). What changes is what happens between "transcript arrives" and "response goes out."
+The infra is the same (Auth0, Supabase, Stripe, Recall.ai, Jira, OpenAI). What changes is what happens between "transcript arrives" and "response goes out" — plus ElevenLabs for TTS and Recall's Output Audio endpoint for the bot to speak aloud.
 
 ---
 
@@ -29,9 +29,8 @@ The infra is the same (Auth0, Supabase, Stripe, Recall.ai, Jira, OpenAI). What c
 - Stripe metering (`reportMeetingUsage`)
 - Recall.ai bot dispatch + transcription (`createBot`, `getBotDuration`)
 - Jira ticket creation (`createJiraBlockerTicket`)
-- All API routes except the recall webhook handler
-- `.env.local` (no new env vars needed)
-- Phase 0 setup (already done)
+- All API routes except recall webhook + bot dispatch
+- `.env.local` (only two new env vars: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`)
 
 ### Changes
 
@@ -39,126 +38,94 @@ The infra is the same (Auth0, Supabase, Stripe, Recall.ai, Jira, OpenAI). What c
 |---|---|---|
 | `src/lib/types.ts` | New types: `Persona`, `AgentAction`, `ConversationTurn` | **Frozen** — both agree first |
 | `src/lib/persona.ts` | **New.** Builds agent persona from user context | **A** |
-| `src/lib/agent.ts` | **New.** Core agent loop: transcript → LLM → action | **B** |
+| `src/lib/agent.ts` | **New.** Core agent loop: transcript → LLM → speak + tickets | **B** |
 | `src/lib/agent.test.ts` | **New.** Self-check for agent decision logic | **B** |
 | `src/lib/openai.ts` | New function: `runAgentTurn()` alongside existing `extractBlocker()` | **B** |
-| `src/app/api/webhooks/recall/route.ts` | Route transcript through agent instead of raw extraction | **B** |
-| `src/app/page.tsx` | Update landing copy to reflect agent capabilities | **A** |
+| `src/lib/elevenlabs.ts` | **New.** Text-to-speech: text → MP3 base64 | **B** |
+| `src/lib/recall.ts` | Modify `createBot()` to include `automatic_audio_output` config. New function: `outputAudio()` | **B** |
+| `src/app/api/webhooks/recall/route.ts` | Route transcript through agent; agent speaks via voice + chat | **B** |
+| `src/app/page.tsx` | Update landing copy to reflect voice agent | **A** |
 | `src/app/context/page.tsx` | **New.** Enhanced context submission page | **A** |
 | `src/app/api/context/route.ts` | **New.** Save enhanced agent context | **A** |
 | `src/app/dashboard/page.tsx` | Add context entry to dashboard | **A** |
-| `src/lib/extract.ts` | Gutted — buffering stays, but flush calls agent instead of `extractBlocker` | **B** |
+| `src/lib/extract.ts` | Gutted — buffering stays, flush calls agent instead of `extractBlocker` | **B** |
 
 ---
 
-## 2. New architecture
+## 2. Voice architecture
 
-### The agent loop
+### How the bot speaks aloud
+
+Recall.ai has an **Output Audio** endpoint: `POST /bot/{id}/output_audio/` with a base64-encoded MP3. The bot plays it in the meeting. This works on Zoom, Meet, Teams, and Webex.
 
 ```
-Transcript chunk arrives
+Transcript chunk arrives via webhook
         │
         ▼
-   Buffer it (same char/time heuristic)
+   Buffer (same char/time heuristic from V1)
         │
         ▼
-   Flush → Agent turn
+   Flush → Agent turn (LLM)
         │
-        ├─ Build persona from DB (user's async updates, profile, past blockers)
-        ├─ Build conversation history (last 5-10 turns from this meeting)
-        ├─ Call LLM with: persona + history + transcript segment
+        ├─ LLM decides: should I speak? what do I say?
         │
         ▼
-   LLM returns structured AgentAction:
+   If should_speak:
         │
-        ├─ should_speak: true/false
-        ├─ message: what to say in chat
-        ├─ blocker_found: true/false
-        └─ blocker: { summary, description, priority }
+        ├─ ElevenLabs TTS: text → MP3 audio bytes
+        ├─ Recall Output Audio: POST MP3 → bot speaks in meeting
+        └─ ALSO sendChatMessage(text) as fallback (muted participants, audio fail)
         │
         ▼
-   Execute actions:
-        ├─ If should_speak → sendChatMessage(botId, message)
-        └─ If blocker_found → createJiraBlockerTicket + dedupe guard
+   If blocker_found:
+        │
+        └─ Jira ticket + chat link (same as V1)
 ```
 
-### Persona system
+### ElevenLabs TTS (`src/lib/elevenlabs.ts`)
 
-Before the meeting, the user submits **agent context** via a new page. This is different from async updates — it's specifically "what your agent should know and how it should represent you."
-
+One function:
 ```ts
-type Persona = {
-  // Who the agent is representing
-  user_name: string;
-  user_role: string;
-  
-  // What the agent knows
-  current_work: string;       // "I'm building the payments integration"
-  active_blockers: string;    // "Blocked on Auth0 staging webhook returning 500"
-  recent_wins: string;        // "Shipped the dashboard yesterday"
-  
-  // How the agent should behave
-  communication_style: string; // "Direct and technical", "Friendly", etc.
-  delegation_instructions: string; // "If asked about the API, direct them to the OpenAPI spec"
-  
-  // What the agent should watch for
-  topics_to_track: string;    // "Mention of 'Auth0', 'staging', or 'webhook'"
-  questions_for_team: string; // "Ask DevOps: when will staging be fixed?"
-  
-  // Meeting-specific
-  meeting_goal: string;       // "Get an ETA on the staging fix"
-  
-  // Raw context blob (async updates + anything else)
-  raw_context: string;
-};
+export async function textToSpeech(text: string): Promise<string>
+// Returns base64-encoded MP3 string ready for Recall's Output Audio endpoint.
+// Returns empty string on failure — caller falls back to chat message.
 ```
 
-### Agent LLM
+Uses ElevenLabs Text-to-Speech API: `POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`
+- Voice: configurable via `ELEVENLABS_VOICE_ID` (default: "Adam" — `pNInz6obpgDQGcFmaJgB`)
+- Model: `eleven_turbo_v2_5` (fastest, ~400ms latency)
+- Returns: MP3 audio bytes → base64 encode → return
 
-One call per flush, handles conversation + extraction together:
+### Recall Output Audio (`src/lib/recall.ts`)
 
+New function:
 ```ts
-// src/lib/types.ts — new types
-type AgentAction = {
-  should_speak: boolean;
-  message: string;              // empty if !should_speak
-  thinking: string;             // internal reasoning (logged, not shown)
-  blocker: {
-    found: boolean;
-    summary: string;
-    description: string;
-    priority: 'Highest' | 'High' | 'Medium' | 'Low';
-  };
-};
-
-type ConversationTurn = {
-  speaker: string;              // "Alice", "Bot", etc.
-  text: string;
-  timestamp: string;
-};
+export async function outputAudio(botId: string, mp3Base64: string): Promise<void>
+// POST /bot/{bot_id}/output_audio/ with { kind: "mp3", b64_data: mp3Base64 }
 ```
 
-The system prompt is the key differentiator. It instructs the model to be an agent representing a specific person:
-
+`createBot()` must include `automatic_audio_output` config with a short silent MP3 to enable the endpoint:
+```ts
+automatic_audio_output: {
+  in_call_recording: {
+    data: { kind: "mp3", b64_data: SILENT_MP3_BASE64 }
+  }
+}
 ```
-You are {user_name}, a {user_role}, represented by an AI agent in a standup 
-meeting you couldn't attend. 
+The silent MP3 is a constant — a few bytes of silence encoded as base64. It plays once when the bot joins and is never replayed. It exists only to satisfy Recall's requirement that `automatic_audio_output` be configured for the Output Audio endpoint to work.
 
-Your context:
-- Currently working on: {current_work}
-- Active blockers: {active_blockers}
-- Recent wins: {recent_wins}
-- Communication style: {communication_style}
+### Latency budget
 
-Rules:
-1. Answer questions directed at you using your context. Be concise.
-2. If someone asks about your blockers, give specifics.
-3. If the conversation touches your topics_to_track, chime in proactively.
-4. If your questions_for_team are relevant to the discussion, ask them.
-5. Never make up information not in your context. Say "I don't have that context" if unsure.
-6. Extract technical blockers as they're discussed (even if not yours).
-7. Your response goes to meeting chat — keep messages under 3 sentences.
-```
+| Step | Est. time |
+|------|-----------|
+| Transcript webhook delivery | ~500ms |
+| Buffering (up to 5s silence or 200 chars) | variable |
+| LLM (GPT-4o) | ~1-2s |
+| ElevenLabs TTS (turbo v2.5) | ~400ms |
+| Recall Output Audio | ~500ms |
+| **Total after flush** | **~2-3s** |
+
+This is acceptable. Meeting participants are accustomed to slight delays (people unmute, think, etc.). The agent's voice responses feel like a remote participant on a laggy connection — which is actually the right UX expectation.
 
 ---
 
@@ -192,8 +159,8 @@ export type ConversationTurn = {
 /** Agent's decision after processing a transcript segment. */
 export type AgentAction = {
   should_speak: boolean;
-  message: string;
-  thinking: string;
+  message: string;              // what to say (text, fed to TTS)
+  thinking: string;             // internal reasoning (logged, not spoken)
   blocker: {
     found: boolean;
     summary: string;
@@ -214,8 +181,7 @@ export type ContextRequest = {
   meeting_goal?: string;
 };
 
-/** A's function that B calls to load persona before dispatching */
-// In src/lib/persona.ts, owned by A
+// A's function that B calls
 export async function getPersona(userId: string): Promise<Persona | null>;
 ```
 
@@ -224,25 +190,24 @@ export async function getPersona(userId: string): Promise<Persona | null>;
 ## 4. Track A — Persona, context UI, landing update
 
 ### A1 — Landing page rewrite
-`src/app/page.tsx` — the current copy says "spoken blockers become Jira tickets in real time." Change to reflect the agent:
+`src/app/page.tsx` — rewrite copy for voice agent:
 - Headline: "Your AI Stand-in for Standup"
-- Subhead: "Can't make standup? Pinico sends an AI agent that knows your context, answers questions, and flags blockers — so your team never waits on you."
+- Subhead: "Can't make standup? Pinico sends a voice agent that knows your context, speaks for you, and flags blockers — so your team never waits on you."
 - Steps: (1) Set your context (2) Agent joins standup (3) Agent speaks for you + creates tickets
 - Same pricing line, same auth flow
-- Keep the same visual style, just change copy
 
 ### A2 — Context submission page
 `src/app/context/page.tsx` — new page at `/context`:
 - Form fields matching `ContextRequest` type
 - Pre-populate from today's async update if one exists
-- "Save Context" button → POST `/api/context`
-- Show "Your agent is ready for the next standup" confirmation
-- Auth-gated (redirect to login if no session)
+- "Save Context" → POST `/api/context`
+- Show "Your voice agent is ready for the next standup" confirmation
+- Auth-gated
 
 ### A3 — Context API route
 `src/app/api/context/route.ts`:
-- `POST` — validate with zod, upsert into a new `agent_context` table (or a JSON column on `profiles`)
-- `GET` — return current context for the authenticated user
+- `POST` — validate with zod, upsert into `agent_context` table
+- `GET` — return current context for authenticated user
 - Auth required
 
 ### A4 — Persona builder
@@ -250,21 +215,37 @@ export async function getPersona(userId: string): Promise<Persona | null>;
 ```ts
 export async function getPersona(userId: string): Promise<Persona | null>
 ```
-- Reads the user's saved context, async updates, and profile
+- Reads saved context, async updates, and profile
 - Builds and returns a `Persona` object
-- This is the function B calls to get the agent's "brain" before a meeting
+- This is what B calls to get the agent's "brain"
 
 ### A5 — Dashboard integration
-- Add a "Set Agent Context" link/card on the dashboard
-- Show current context status ("Context set 2 hours ago" / "No context set")
+- Add "Set Agent Voice Context" link on dashboard
+- Show current context status
 
 ---
 
-## 5. Track B — Agent engine, conversational LLM, webhook rewrite
+## 5. Track B — Agent engine, voice output, webhook rewrite
 
-### B1 — Agent LLM (`src/lib/openai.ts`)
+### B1 — ElevenLabs TTS (`src/lib/elevenlabs.ts`)
+```ts
+export async function textToSpeech(text: string): Promise<string>
+```
+- Calls ElevenLabs API: `POST /v1/text-to-speech/{voice_id}`
+- Voice ID from env var `ELEVENLABS_VOICE_ID` (default: "Adam")
+- Model: `eleven_turbo_v2_5`
+- Returns base64-encoded MP3
+- Must not throw; log and return empty string on failure
+- Verify with curl BEFORE writing TS wrapper
+
+### B2 — Recall Output Audio (`src/lib/recall.ts` — modify)
+- Modify `createBot()`: add `automatic_audio_output` config with silent MP3
+- New function: `outputAudio(botId, mp3Base64)` → POST `/bot/{id}/output_audio/`
+- Silent MP3 is a const (~500 bytes of silence, base64-encoded)
+- Verify with curl BEFORE writing TS wrapper
+
+### B3 — Agent LLM (`src/lib/openai.ts`)
 Add `runAgentTurn()`:
-
 ```ts
 export async function runAgentTurn(
   persona: Persona,
@@ -272,13 +253,16 @@ export async function runAgentTurn(
   transcript: string
 ): Promise<AgentAction>
 ```
-
-- Builds system prompt from persona
-- Includes last 5-10 conversation turns as context
+- System prompt built from persona — instructs model it IS the person, speaking through a voice agent
+- Includes last 5-10 conversation turns
 - Uses GPT-4o with json_schema strict mode
-- The existing `extractBlocker()` stays (may be used as fallback)
+- Key prompt instructions:
+  - "You are {user_name} speaking through a voice agent in a standup meeting."
+  - "Keep spoken responses under 2 sentences. You are speaking out loud, not typing."
+  - "Only speak when addressed or when your tracked topics come up."
+  - "Never invent information. Say you don't have context if unsure."
 
-### B2 — Agent core (`src/lib/agent.ts`)
+### B4 — Agent core (`src/lib/agent.ts`)
 ```ts
 export async function processTranscript(
   meetingId: string,
@@ -286,46 +270,52 @@ export async function processTranscript(
   text: string
 ): Promise<void>
 ```
-
 - Gets persona via `getPersona()`
-- Loads recent conversation turns from a new `conversation_log` table (or in-memory for MVP)
+- Loads recent conversation turns (in-memory sliding window for MVP)
 - Calls `runAgentTurn()`
-- If `should_speak` → `sendChatMessage(botId, message)`
-- If `blocker_found` → ticket creation pipeline (same as current)
-- Logs the turn to conversation history
+- If `should_speak`:
+  1. `textToSpeech(message)` → MP3 base64
+  2. `outputAudio(botId, mp3)` → bot speaks aloud
+  3. ALSO `sendChatMessage(botId, message)` as text fallback
+- If `blocker_found` → Jira ticket pipeline (same dedupe guard as V1)
+- Logs turn to conversation history
 
-### B3 — Agent self-check (`src/lib/agent.test.ts`)
-- Feed a fake persona + transcript through `runAgentTurn()`
-- Assert the agent responds when its name/topics are mentioned
-- Assert the agent stays silent on irrelevant conversation
+### B5 — Agent self-check (`src/lib/agent.test.ts`)
+- Feed fake persona + transcript → assert agent speaks when addressed
+- Assert agent stays silent on irrelevant conversation
 - Assert blocker extraction still works
+- Mock TTS + Output Audio calls (don't hit real APIs)
 - `node --test src/lib/agent.test.ts` must pass
 
-### B4 — Webhook rewrite (`src/app/api/webhooks/recall/route.ts`)
-The `handleTranscript()` function changes:
+### B6 — Webhook rewrite (`src/app/api/webhooks/recall/route.ts`)
+`handleTranscript()` changes:
 - Instead of `ingestChunk()` → `extractBlocker()` → ticket
-- Now: `ingestChunk()` → `processTranscript()` (which handles speaking + tickets)
-- The buffering logic in `ingestChunk` stays — it still decides when to flush
-- But at flush time, instead of calling `extractBlocker()`, it calls the agent pipeline
+- Now: `ingestChunk()` buffers → on flush → `processTranscript()` (handles speaking + tickets)
+- Buffering logic stays identical
+- `after()` wrapping stays (send 200 first, do work after)
 
-### B5 — `src/lib/extract.ts` changes
+### B7 — `src/lib/extract.ts` changes
 - `ingestChunk()` still handles buffering
-- At flush time, calls `processTranscript()` from agent.ts instead of `extractBlocker()` directly
-- The `dedupeKey` logic stays
-- This file becomes thinner — buffering only
-
-### B6 — Conversation storage (minimal)
-- New Supabase table: `conversation_turns (meeting_id, speaker, text, created_at)`
-- Or simpler: append to `meetings.transcript_buffer` and parse for history
-- For MVP, just keep last 10 turns in memory (simplest)
-- ponytail: in-memory, last-10 sliding window. Upgrade to DB table if we need persistence.
+- At flush time: calls `processTranscript()` instead of `extractBlocker()` directly
+- Dedupe logic moves into agent.ts
 
 ---
 
-## 6. Supabase schema additions
+## 6. New env vars
+
+```
+# ElevenLabs (new — needed for voice)
+ELEVENLABS_API_KEY="sk_..."
+ELEVENLABS_VOICE_ID="pNInz6obpgDQGcFmaJgB"  # "Adam" — stable, professional male voice
+
+# No other new vars needed
+```
+
+---
+
+## 7. Supabase schema additions
 
 ```sql
--- Agent context storage (or add as JSONB column to profiles)
 CREATE TABLE agent_context (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) UNIQUE,
@@ -340,74 +330,72 @@ CREATE TABLE agent_context (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- Conversation log (optional — may skip for MVP)
-CREATE TABLE conversation_turns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  meeting_id UUID REFERENCES meetings(id),
-  speaker TEXT NOT NULL,
-  text TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
 ```
 
 ---
 
-## 7. Implementation order (critical path)
+## 8. Implementation order
 
-### Phase 1: Contracts + stubs (both agents, 30 min)
-1. **Both agree on §3 types** and add them to `src/lib/types.ts`
+### Phase 1: Contracts + stubs (both, 30 min)
+1. Both agree on §3 types → add to `src/lib/types.ts`
 2. **A** stubs `src/lib/persona.ts` → `getPersona()` returns hardcoded demo persona
-3. **B** stubs `src/lib/agent.ts` → `processTranscript()` returns no-op
-4. Commit. Both tracks unblocked.
+3. **B** stubs `src/lib/agent.ts` → `processTranscript()` no-op
+4. **B** stubs `src/lib/elevenlabs.ts` → `textToSpeech()` returns empty string
+5. Commit. Both unblocked.
 
-### Phase 2: B builds agent engine (B, ~2 hours)
-1. `runAgentTurn()` in `src/lib/openai.ts` — the LLM call
-2. `processTranscript()` in `src/lib/agent.ts` — the agent loop
-3. `agent.test.ts` — self-check
-4. Rewire recall webhook to use agent pipeline
-5. Test end-to-end with a real meeting + ngrok
+### Phase 2: B builds voice agent engine (B, ~2.5 hours)
+1. Verify ElevenLabs TTS with curl — confirm MP3 comes back
+2. Verify Recall Output Audio with curl — confirm bot plays audio
+3. `textToSpeech()` in `src/lib/elevenlabs.ts`
+4. `outputAudio()` in `src/lib/recall.ts` + modify `createBot()` config
+5. `runAgentTurn()` in `src/lib/openai.ts` — the LLM call with agent persona
+6. `processTranscript()` in `src/lib/agent.ts` — full agent loop with voice
+7. `agent.test.ts` — self-check
+8. Rewire recall webhook to use agent pipeline
+9. Test end-to-end: dispatch bot → bot speaks aloud in meeting
 
 ### Phase 3: A builds context UI (A, ~2 hours)
 1. `src/app/context/page.tsx` + `POST /api/context`
 2. `src/lib/persona.ts` real implementation
 3. Dashboard integration
 4. Landing page copy update
+5. Run `agent_context` schema migration
 
 ### Phase 4: Integration (both, 1 hour)
-1. Run the full flow: submit context → dispatch bot → agent speaks in meeting → ticket created
-2. Test: agent answers questions about user's blockers
+1. Submit context → dispatch bot → agent speaks with voice → ticket created
+2. Test: agent answers questions about user's blockers (out loud)
 3. Test: agent stays silent when irrelevant
-4. Test: blocker extraction still works
+4. Test: text chat fallback works when TTS fails
 5. Land on `main`
 
 ---
 
-## 8. What we're NOT building (roadmap)
+## 9. Deliberately NOT building (roadmap)
 
-- **Voice output (ElevenLabs).** Chat injection IS the agent's voice. Real TTS requires audio injection into meetings, which is platform-specific and Recall.ai doesn't support natively. Pitch it, don't build it.
-- **Multi-person agent routing.** One user = one agent. The persona is tied to the authenticated user who dispatched the bot.
-- **Agent-to-agent conversation.** One bot per meeting.
-- **Persistent conversation memory across meetings.** Fresh context each standup.
-- **Proactive agent scheduling.** User manually dispatches the bot for now.
+- **Output Media (streaming webpage + OpenAI Realtime).** The Output Audio endpoint + ElevenLabs is simpler and sufficient. Sub-second latency via streaming audio I/O is the post-hackathon upgrade path.
+- **Multi-person agent routing.** One user = one persona per meeting.
+- **Persistent memory across meetings.** Fresh context each standup.
+- **Proactive agent scheduling.** User manually dispatches.
+- **Custom ElevenLabs voice clones.** Adam is fine for MVP.
 
 ---
 
-## 9. Known risks
+## 10. Known risks
 
 | Risk | Mitigation |
 |---|---|
-| LLM latency makes agent responses feel slow | The chat message is the response — people read async. 2-3s is fine. |
-| Agent hallucinates information not in context | System prompt explicitly forbids this. Test with edge cases. |
-| Recall.ai transcript accuracy is low | The agent works with what it gets. "I didn't catch that" is a valid response. |
-| buffering heuristic misfires for conversation | The 200-char / 5s thresholds were for blocker extraction. May need tuning for conversation. |
+| TTS latency makes responses feel laggy | ElevenLabs Turbo v2.5 is ~400ms. Total ~2-3s — acceptable for a "remote participant" UX. |
+| Output Audio has undocumented duration limits | Test with real meeting early. If clips are capped, chunk long responses into multiple calls. |
+| Agent hallucinates information | System prompt forbids invention. Test with adversarial transcripts. |
+| Bot speaks over someone talking | Flush only after silence or char threshold. Not perfect, fine for demo. |
+| ElevenLabs API costs | ~$0.015 per 1K chars. Demo-scale is negligible. |
 
 ---
 
-## 10. Kickoff messages
+## 11. Kickoff messages
 
 **To Agent A (context UI + landing):**
-> Read HANDOFF-V2.md. You own Track A (§4). Build the context submission page, persona builder, and update the landing copy. Start by stubbing `getPersona()` so B isn't blocked. Respect the ownership table in §1.
+> Read HANDOFF-V2.md. You own Track A (§4). Build context submission page, persona builder, and landing copy. Start by stubbing `getPersona()` so B isn't blocked. Respect the ownership table in §1.
 
-**To Agent B (agent engine):**
-> Read HANDOFF-V2.md. You own Track B (§5). You are the critical path — the agent engine IS the demo. Build `runAgentTurn()` and `processTranscript()`, then rewire the recall webhook. Start with a self-check test. Get a public tunnel running in the first 30 minutes. Respect the ownership table in §1.
+**To Agent B (voice agent engine):**
+> Read HANDOFF-V2.md. You own Track B (§5). You are the critical path — the voice agent IS the demo. Build ElevenLabs TTS, Recall Output Audio, `runAgentTurn()`, and `processTranscript()`. Rewire the recall webhook. Verify ElevenLabs + Output Audio with curl BEFORE writing TS. Get ngrok running in the first 30 minutes. Respect the ownership table in §1.
