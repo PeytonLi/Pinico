@@ -125,21 +125,25 @@ against the "done" timestamp
 ([docs.recall.ai/docs/bot-status-change-events](https://docs.recall.ai/docs/bot-status-change-events)
 recommends exactly this for billing).
 
-**AMBIGUITY — genuinely conflicting docs, flagged rather than silently
-picked:** one fetch of the retrieve-bot reference implied `status_changes[].code`
-values are bare strings (`"joining"`, `"in_waiting_room"`, `"done"`,
-`"fatal"`); the status-change-events guide instead shows event-prefixed
-strings (`"bot.joining_call"`, `"bot.in_call_recording"`, `"bot.done"`).
-These may simply be two different fields (webhook `event` vs. the stored
-`status_changes[].code`), or the docs may be inconsistent. Since this
-couldn't be resolved without a live bot to inspect, `getBotDuration()` in
-`src/lib/recall.ts` matches with `.includes('in_call')` /
-`.includes('done')` / `.includes('call_ended')` so either shape works, and
-falls back to the first/last timestamp in the array if nothing matches —
-it will never throw or return `NaN`/negative on an unexpected shape, only
-degrade to "first event to last event" as its duration estimate.
-**Whoever has credentials: log one real `status_changes` array and confirm
-which shape it actually is; tighten the match if useful.**
+**RESOLVED against a live bot (2026-07-30).** The docs conflicted — the
+retrieve-bot reference implied bare strings, the status-change-events guide
+showed event-prefixed ones (`"bot.in_call_recording"`). A real bot
+(`4d0c8c65…`) joining a live Google Meet returned **bare** codes:
+
+```
+joining_call -> joining_call -> in_waiting_room -> in_waiting_room
+  -> in_call_not_recording -> in_call_not_recording
+  -> in_call_recording -> in_call_recording
+```
+
+So `status_changes[].code` is bare; the `bot.`-prefixed form is the *webhook
+`event`* field, a different thing. Codes also repeat (each appears twice).
+
+`getBotDuration()` matches with `.includes('in_call')` / `.includes('done')` /
+`.includes('call_ended')`, which is correct for this shape and still tolerant
+if Recall ever switches. Note `in_call_not_recording` also contains `in_call`,
+so the sorted `.find()` picks the earlier "joined" moment — the intended
+behaviour for billing.
 
 ## 6. Things not touched by this file (for context, owned elsewhere)
 
