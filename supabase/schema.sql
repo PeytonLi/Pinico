@@ -69,3 +69,33 @@ CREATE TABLE agent_context (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ---- V3 additions: Google Calendar ----
+
+-- Google OAuth tokens stored per user.
+CREATE TABLE calendar_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id) UNIQUE,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Per-meeting notes. Keyed to Google Calendar event id.
+CREATE TABLE calendar_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  event_id TEXT NOT NULL,          -- Google Calendar event id
+  meeting_title TEXT NOT NULL,     -- cached from calendar
+  meeting_url TEXT,                -- Meet/Zoom link from calendar event
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ,
+  notes TEXT DEFAULT '',           -- user's notes for this meeting
+  auto_dispatch BOOLEAN DEFAULT false,  -- auto-join when meeting starts
+  dispatched BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, event_id)
+);

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { AsyncUpdateForm } from '@/components/async-update-form';
 import { MeetingPanel } from '@/components/meeting-panel';
 import { DashboardHeader } from '@/components/dashboard-header';
+import { CalendarPanel } from '@/components/calendar-panel';
 
 export default async function DashboardPage() {
   const profile = await getOrCreateProfile();
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
         </a>
 
         <AsyncUpdateForm profileId={profile.id} />
+        <CalendarPanel profileId={profile.id} />
         <MeetingPanel profileId={profile.id} />
       </main>
     </div>

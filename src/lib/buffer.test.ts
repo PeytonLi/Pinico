@@ -8,10 +8,22 @@ import { shouldFlush, dedupeKey } from './buffer.ts';
 // Covers the buffering decision that stands between Recall's continuous
 // transcript stream and hundreds of redundant OpenAI calls / duplicate tickets.
 
-test('shouldFlush: short buffer + recent chunk -> false', () => {
+// REGRESSION: this is the bug that made the agent silent in a live meeting.
+// One finalized utterance arrived, buffered 33 chars, and nothing else ever
+// came — so shouldFlush was never re-evaluated and the buffer sat forever.
+// A finalized utterance must flush on its own, with no prior chunk and no timer.
+test('shouldFlush: single finalized utterance, no prior chunk -> true', () => {
+  assert.equal(shouldFlush(' Like, yeah. Okay, well, we have.', null, new Date()), true);
+});
+
+test('shouldFlush: a real utterance flushes immediately, not after a pause', () => {
   const lastChunkAt = new Date('2026-01-01T00:00:04.000Z');
-  const now = new Date('2026-01-01T00:00:05.000Z'); // 1s gap
-  assert.equal(shouldFlush('we are blocked on something', lastChunkAt, now), false);
+  const now = new Date('2026-01-01T00:00:05.000Z'); // only 1s gap
+  assert.equal(shouldFlush('we are blocked on something', lastChunkAt, now), true);
+});
+
+test('shouldFlush: sub-utterance fragment alone -> false (waits for more)', () => {
+  assert.equal(shouldFlush('yeah', null, new Date()), false);
 });
 
 test('shouldFlush: buffer >= 200 chars -> true', () => {
