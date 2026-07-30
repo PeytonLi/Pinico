@@ -16,6 +16,7 @@ if (!meetingUrl) {
 const lib = new URL('../src/lib/', import.meta.url).href;
 const { getDb } = await import(lib + 'supabase.ts');
 const { createBot } = await import(lib + 'recall.ts');
+const { seedPersona } = await import('./persona.mjs');
 
 const db = getDb();
 
@@ -36,30 +37,8 @@ if (pErr) throw new Error('profile upsert failed: ' + pErr.message);
 console.log('1. profile:', profile.id, profile.full_name);
 
 // 2. Persona — this is what makes the agent speak instead of silently extracting.
-const { error: cErr } = await db.from('agent_context').upsert(
-  {
-    user_id: profile.id,
-    current_work:
-      'Shipping Pinico V2, the voice agent that joins standups. Finished the DeepSeek blocker extraction, automatic Jira ticket creation, and ElevenLabs voice output through Recall.',
-    // Keep this TRUE. Whatever it says here gets spoken as fact and filed as a
-    // Jira ticket, so a stale blocker means the demo lies and files junk tickets.
-    // The old value ("unknown Output Audio duration limits") was measured and
-    // resolved: the cap is a 1,835,008-char b64 payload, ~88s of speech.
-    active_blockers:
-      'Only real risk left is the ngrok tunnel: if it restarts the public URL changes, and bot dispatch then fails with a 403 until the environment is updated. Looking at a stable host for the demo.',
-    recent_wins:
-      'Got the bot speaking aloud in a live Google Meet, spoken blockers now file real Jira tickets, and I measured the Recall audio payload cap at about 88 seconds so replies can be sized safely.',
-    communication_style: 'Direct and concise, friendly, no corporate filler.',
-    delegation_instructions:
-      'If asked about the frontend, Auth0, or the dashboard, say Peyton has not touched those today and will follow up.',
-    topics_to_track: 'Recall.ai, ElevenLabs, Jira integration, Stripe billing, DeepSeek',
-    questions_for_team: 'Does anyone have a stable host I can point the webhook at instead of a tunnel?',
-    meeting_goal: 'Report V2 progress and flag the tunnel stability risk.',
-    updated_at: new Date().toISOString(),
-  },
-  { onConflict: 'user_id' }
-);
-if (cErr) throw new Error('agent_context upsert failed: ' + cErr.message);
+// Content lives in scripts/persona.mjs, shared with seed-persona.mjs.
+await seedPersona(db, profile.id);
 console.log('2. persona seeded');
 
 // 3. Bot in, and a meetings row keyed to its id so the webhook resolves it.
