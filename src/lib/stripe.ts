@@ -1,11 +1,17 @@
 import Stripe from 'stripe';
-import { getDb } from './supabase';
 
 /**
  * Reports meeting minutes to Stripe metering. Called by Track B when a bot
  * session ends. Must never throw — billing failure is non-fatal for the demo.
  *
  * Contract frozen in HANDOFF.md §3 — Agent B is blocked on this signature.
+ *
+ * Metering only. It deliberately does NOT write `meetings.duration_minutes`:
+ * it has no meeting id, so the only filter available was
+ * (stripe_customer_id, status='completed') — and since every demo meeting
+ * shares STRIPE_DEMO_CUSTOMER_ID, that overwrote the duration of every earlier
+ * completed meeting on each new one. The webhook handler owns that write now,
+ * scoped to the row it already has by id.
  */
 export async function reportMeetingUsage(
   stripeCustomerId: string,
@@ -36,23 +42,5 @@ export async function reportMeetingUsage(
     // time is worse than claiming the feature doesn't work at all. The console
     // log at least surfaces the failure.
     console.error('[stripe] meter event failed:', err);
-  }
-
-  // ──────────────── 2. Update meeting row ────────────────
-  try {
-    const customerId =
-      stripeCustomerId ||
-      process.env.STRIPE_DEMO_CUSTOMER_ID ||
-      'demo-customer';
-
-    await getDb()
-      .from('meetings')
-      .update({ duration_minutes: minutes })
-      .eq('stripe_customer_id', customerId)
-      .eq('status', 'completed');
-  } catch (err) {
-    // ponytail: log + continue. The meter event is the prize; the meetings
-    // row update is best-effort record-keeping.
-    console.error('[stripe] meetings update failed:', err);
   }
 }

@@ -9,6 +9,9 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // Lets *.test.ts use literal `./foo.ts` specifiers, which Node's native TS
+    // runner requires (it does no extension guessing). Safe with noEmit.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",

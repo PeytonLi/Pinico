@@ -1,38 +1,12 @@
-import { register } from 'node:module';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// ponytail: tsconfig.json (not mine to touch) uses moduleResolution
-// "bundler", so every import in this project is written extensionless
-// (`from './extract'`), which webpack/turbopack resolve fine. Node's native
-// TS runner has no bundler and refuses to guess extensions on relative
-// specifiers — it only resolves `./extract.ts` literally, which in turn
-// makes tsc fail with TS5097 unless `allowImportingTsExtensions` is set
-// (a tsconfig.json change outside this file's ownership). This loader hook
-// resolves that tension without touching tsconfig.json or any other file:
-// it's a `node:module` resolve hook, registered from a data: URL so no new
-// file is needed, that retries an extensionless relative specifier with
-// `.ts` appended. Ceiling: only intercepts extensionless relative imports;
-// upgrade to `allowImportingTsExtensions` + real `.ts` specifiers everywhere
-// once tsconfig.json is under one team's control.
-register(
-  'data:text/javascript,' +
-    encodeURIComponent(`
-export async function resolve(specifier, context, nextResolve) {
-  try {
-    return await nextResolve(specifier, context);
-  } catch (err) {
-    if (specifier.startsWith('.') && !specifier.match(/\\.[a-z]+$/i)) {
-      return nextResolve(specifier + '.ts', context);
-    }
-    throw err;
-  }
-}
-`),
-  import.meta.url
-);
+// Literal `.ts` specifier: Node's native TS runner does no extension guessing.
+// Enabled by "allowImportingTsExtensions" in tsconfig.json.
+import { shouldFlush, dedupeKey } from './buffer.ts';
 
-const { shouldFlush, dedupeKey } = await import('./extract');
+// Covers the buffering decision that stands between Recall's continuous
+// transcript stream and hundreds of redundant OpenAI calls / duplicate tickets.
 
 test('shouldFlush: short buffer + recent chunk -> false', () => {
   const lastChunkAt = new Date('2026-01-01T00:00:04.000Z');
