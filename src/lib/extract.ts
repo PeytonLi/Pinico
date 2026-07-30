@@ -1,5 +1,5 @@
 import { getDb } from './supabase';
-import { extractBlocker } from './openai';
+import { extractBlocker } from './llm';
 import { shouldFlush } from './buffer';
 import type { ExtractedBlocker } from './types';
 
