@@ -8,24 +8,43 @@ import type { Persona } from './types';
  * Returns null when no context has been saved for the user — the caller
  * (Track B's agent) should handle this gracefully (skip the agent turn).
  */
-
-// PHASE 2 STUB — always returns the hardcoded demo persona below.
-// Track A replaces this with a real DB read in Phase 3.
 export async function getPersona(userId: string): Promise<Persona | null> {
-  void userId; // suppress unused warning during stub phase
+  const db = getDb();
+
+  // Read agent_context, today's async update, and profile in parallel
+  const [ctxRes, updateRes, profileRes] = await Promise.all([
+    db.from('agent_context').select('*').eq('user_id', userId).maybeSingle(),
+    db
+      .from('async_updates')
+      .select('status_text, blockers_text')
+      .eq('user_id', userId)
+      .eq('date', new Date().toISOString().slice(0, 10))
+      .maybeSingle(),
+    db.from('profiles').select('full_name').eq('id', userId).single(),
+  ]);
+
+  const ctx = ctxRes.data;
+  const update = updateRes.data;
+  const profile = profileRes.data;
+
+  if (!ctx) return null;
+
+  // Build raw_context from async update if available
+  const rawContext = update
+    ? `Async update: ${update.status_text}${update.blockers_text ? ` | Blockers: ${update.blockers_text}` : ''}`
+    : '';
+
   return {
-    user_name: 'Demo User',
-    user_role: 'Backend Engineer',
-    current_work: 'Building the payments integration for Pinico',
-    active_blockers: 'Blocked on Auth0 staging webhook returning a 500 error',
-    recent_wins: 'Shipped the dashboard yesterday',
-    communication_style: 'Direct and technical',
-    delegation_instructions:
-      'If asked about the API, point them to the OpenAPI spec at /docs/api',
-    topics_to_track: 'Auth0, staging, webhook, payments, Stripe',
-    questions_for_team: 'Does anyone know when the staging environment will be fixed?',
-    meeting_goal: 'Get an ETA on the staging fix and unblock the payments work',
-    raw_context:
-      'Async update: Working on payments integration. Blocked by Auth0 staging webhook 500.',
+    user_name: profile?.full_name ?? 'Team Member',
+    user_role: 'Engineer', // ponytail: hardcoded default. Add role field to profiles if needed.
+    current_work: ctx.current_work ?? '',
+    active_blockers: ctx.active_blockers ?? '',
+    recent_wins: ctx.recent_wins ?? '',
+    communication_style: ctx.communication_style ?? 'Direct and professional',
+    delegation_instructions: ctx.delegation_instructions ?? '',
+    topics_to_track: ctx.topics_to_track ?? '',
+    questions_for_team: ctx.questions_for_team ?? '',
+    meeting_goal: ctx.meeting_goal ?? '',
+    raw_context: rawContext,
   };
 }

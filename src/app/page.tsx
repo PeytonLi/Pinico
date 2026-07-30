@@ -8,15 +8,17 @@ export default async function Home() {
       {/* Hero */}
       <section className="flex flex-col items-center justify-center px-6 py-24 text-center">
         <h1 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+          Your AI{' '}
           <span className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Pinico
-          </span>
+            Stand-in
+          </span>{' '}
+          for Standup
         </h1>
-        <p className="mt-2 text-lg font-medium text-foreground/40">by Peyton Li</p>
+        <p className="mt-2 text-lg font-medium text-foreground/40">Pinico by Peyton Li</p>
         <p className="mt-6 max-w-xl text-lg text-foreground/70 leading-relaxed">
-          The average 10-person engineering team burns over $60K a year on
-          standups. Pinico sends an AI bot instead — spoken blockers become
-          Jira tickets in real time.
+          Can&apos;t make standup? Pinico sends a voice agent that knows your
+          context, speaks for you, and flags blockers &mdash; so your team
+          never waits on you.
         </p>
 
         <div className="mt-10">
@@ -46,20 +48,20 @@ export default async function Home() {
             <Step
               icon={<ClipboardIcon />}
               step="1"
-              title="Submit your async update"
-              body="Share what you're working on and any blockers before the standup. The bot brings your context into the meeting."
+              title="Set your agent context"
+              body="Tell your agent what you're working on, your blockers, and how to represent you. The agent brings your voice into the meeting."
             />
             <Step
-              icon={<BotIcon />}
+              icon={<MicIcon />}
               step="2"
-              title="Bot joins your standup"
-              body="Paste a Meet or Zoom link. Pinico's bot joins, listens, and transcribes in real time."
+              title="Agent joins and speaks"
+              body="Paste a Meet or Zoom link. Pinico's voice agent joins, listens, and speaks on your behalf with a real voice."
             />
             <Step
               icon={<TicketIcon />}
               step="3"
               title="Blockers become Jira tickets"
-              body="The moment someone says they're blocked, a Jira ticket is created and a link lands in the meeting chat."
+              body="The moment a blocker is discussed, your agent flags it, creates a Jira ticket, and drops the link in chat."
             />
           </div>
         </div>
@@ -74,7 +76,7 @@ export default async function Home() {
 
       {/* Footer */}
       <footer className="border-t border-foreground/10 px-6 py-8 text-center text-xs text-foreground/30">
-        Pinico &mdash; Autonomous standup &amp; AI blocker-to-Jira engine
+        Pinico &mdash; Your AI voice agent for standup
       </footer>
     </main>
   );
@@ -126,7 +128,7 @@ function ClipboardIcon() {
   );
 }
 
-function BotIcon() {
+function MicIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -139,12 +141,9 @@ function BotIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M12 8V4H8" />
-      <rect width="16" height="12" x="4" y="8" rx="2" />
-      <path d="M2 14h2" />
-      <path d="M20 14h2" />
-      <path d="M15 13v2" />
-      <path d="M9 13v2" />
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" x2="12" y1="19" y2="22" />
     </svg>
   );
 }
