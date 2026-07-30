@@ -19,7 +19,9 @@ export async function GET(request: Request) {
     await storeTokens(profile.id, tokens);
     return NextResponse.redirect(new URL('/dashboard?calendar=connected', request.url));
   } catch (err) {
-    console.error('Calendar callback error:', err);
-    return NextResponse.redirect(new URL('/dashboard?calendar=error', request.url));
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Calendar callback error:', msg);
+    const q = encodeURIComponent(msg.slice(0, 100));
+    return NextResponse.redirect(new URL(`/dashboard?calendar=error&reason=${q}`, request.url));
   }
 }
