@@ -3,8 +3,8 @@ import { exchangeCode, storeTokens } from '@/lib/google';
 
 function html(msg: string, ok: boolean) {
   return new Response(
-    `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;text-align:center"><h1 style="color:${ok ? '#16a34a' : '#dc2626'}">${ok ? '✓ Connected' : '✗ Error'}</h1><p style="color:#666">${msg}</p><p><a href="/dashboard">Back to Dashboard</a></p></body></html>`,
-    { headers: { 'Content-Type': 'text/html' } },
+    `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:sans-serif;padding:2rem;text-align:center"><h1 style="color:${ok ? '#16a34a' : '#dc2626'}">${ok ? 'Connected' : 'Error'}</h1><p style="color:#666">${msg}</p><p><a href="/dashboard">Back to Dashboard</a></p></body></html>`,
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
   );
 }
 
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     await storeTokens(profile.id, tokens);
     return html('Google Calendar connected successfully!', true);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
     console.error('Calendar callback error:', msg);
     return html(`Token exchange failed: ${msg}`, false);
   }
