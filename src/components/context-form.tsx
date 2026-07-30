@@ -18,7 +18,8 @@ export function ContextForm({ userId }: { userId: string }) {
     meeting_goal: '',
   });
 
-  // Load existing context on mount
+  void userId;
+
   useEffect(() => {
     fetch('/api/context')
       .then((r) => r.json())
@@ -36,10 +37,8 @@ export function ContextForm({ userId }: { userId: string }) {
           });
         }
       })
-      .catch(() => {}); // silently ignore load failures
+      .catch(() => {});
   }, []);
-
-  void userId; // used only implicitly via the API route which derives user from session
 
   const update = (field: keyof ContextRequest, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -69,19 +68,20 @@ export function ContextForm({ userId }: { userId: string }) {
 
   if (saved) {
     return (
-      <div className="flex flex-col items-center gap-4 rounded-xl border border-green-500/20 bg-green-500/5 p-8 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-10 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10">
           <CheckIcon />
         </div>
-        <h3 className="text-lg font-semibold text-green-600 dark:text-green-400">
-          Your voice agent is ready for the next standup
+        <h3 className="font-display text-lg font-bold text-emerald-600 dark:text-emerald-400">
+          Your voice agent is ready
         </h3>
-        <p className="text-sm text-foreground/60">
-          Dispatch a bot from the dashboard and your agent will represent you with a real voice.
+        <p className="text-sm text-foreground/50 max-w-sm leading-relaxed">
+          Dispatch a bot from the dashboard and your agent will represent you
+          in standup with a real voice.
         </p>
         <button
           onClick={() => setSaved(false)}
-          className="mt-2 text-sm text-foreground/50 underline hover:text-foreground/80"
+          className="mt-2 text-sm text-foreground/30 underline hover:text-foreground/60 transition-colors"
         >
           Edit context
         </button>
@@ -90,9 +90,9 @@ export function ContextForm({ userId }: { userId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400">
           {error}
         </div>
       )}
@@ -173,7 +173,7 @@ export function ContextForm({ userId }: { userId: string }) {
       <button
         type="submit"
         disabled={saving || !form.current_work.trim()}
-        className="mt-2 w-full rounded-lg bg-foreground px-6 py-3 text-sm font-medium text-background transition hover:bg-foreground/90 disabled:opacity-40"
+        className="mt-2 w-full rounded-xl bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition-all duration-200 hover:bg-foreground/90 hover:shadow-md hover:shadow-foreground/10 disabled:opacity-30"
       >
         {saving ? 'Saving...' : 'Save Context'}
       </button>
@@ -192,9 +192,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-foreground/70">
+      <span className="text-sm font-semibold text-foreground/50">
         {label}
-        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {required && <span className="ml-0.5 text-accent">*</span>}
       </span>
       {children}
     </label>
@@ -205,15 +205,15 @@ function CheckIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
+      width="24"
+      height="24"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="text-green-500"
+      className="text-emerald-500"
     >
       <path d="M20 6 9 17l-5-5" />
     </svg>

@@ -1,41 +1,147 @@
+/* ---- Fonts (layout.tsx is frozen, so we use @import) ---- */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* ---- Design Tokens ---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf5ff;
+  --foreground: #0f172a;
+  --color-primary: #7c3aed;
+  --color-primary-soft: #f3e8ff;
+  --color-secondary: #6366f1;
+  --color-accent: #ec4899;
+  --color-muted: #f7f3fd;
+  --color-border: #efe7fc;
+  --color-surface: #ffffff;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-surface: var(--color-surface);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-sans: var(--font-body);
 }
 
+/* ---- Dark Mode ---- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b0618;
+    --foreground: #ede9fe;
+    --color-primary-soft: #1e103d;
+    --color-muted: #120a24;
+    --color-border: #1e1340;
+    --color-surface: #0f0a1e;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+  font-family: var(--font-body);
 }
 
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ---- Animations ---- */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1) translate(0, 0); }
+  50% { opacity: 0.7; transform: scale(1.08) translate(0, -2px); }
 }
 
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes waveform-bar {
+  0%, 100% { height: 4px; opacity: 0.4; }
+  50% { height: 18px; opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
+}
+
+/* ---- Utility Classes ---- */
+@utility animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@utility animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out both;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.6s ease-out both;
+}
+
+@utility animate-waveform {
+  animation: waveform-bar 1.2s ease-in-out infinite;
+}
+
+@utility animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(124, 58, 237, 0.15) 25%,
+    rgba(236, 72, 153, 0.15) 50%,
+    rgba(124, 58, 237, 0.15) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@utility animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@utility animate-orbit {
+  animation: orbit 12s linear infinite;
+}
+
+@utility stagger-1 { animation-delay: 0.1s; }
+@utility stagger-2 { animation-delay: 0.2s; }
+@utility stagger-3 { animation-delay: 0.35s; }
+@utility stagger-4 { animation-delay: 0.5s; }
+@utility stagger-5 { animation-delay: 0.65s; }
+@utility stagger-6 { animation-delay: 0.8s; }
+
+/* Existing V1 animation — keep for backward compat */
 @utility animate-slide-up {
-  animation: slide-up 0.4s ease-out;
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* ---- Reduced Motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
