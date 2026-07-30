@@ -11,6 +11,12 @@ export default async function ContextPage() {
     <div className="flex min-h-screen flex-col">
       <DashboardHeader profile={profile} />
       <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-6 py-10">
+        <a
+          href="/dashboard"
+          className="inline-flex items-center gap-1 text-sm text-foreground/40 hover:text-foreground transition-colors w-fit"
+        >
+          <span className="text-xs">&larr;</span> Back to Dashboard
+        </a>
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight">
             Agent Voice Context

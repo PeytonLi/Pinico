@@ -10,6 +10,12 @@ export function DashboardHeader({ profile }: { profile: Profile }) {
         Pinico
       </a>
       <div className="flex items-center gap-5 text-sm">
+        <a
+          href="/dashboard"
+          className="text-foreground/40 hover:text-foreground transition-colors"
+        >
+          Dashboard
+        </a>
         <span className="text-foreground/40 hidden sm:inline">
           {profile.full_name ?? profile.email}
         </span>
