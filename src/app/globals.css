@@ -4,14 +4,14 @@
 
 /* ---- Design Tokens ---- */
 :root {
-  --background: #faf5ff;
+  --background: #ffffff;
   --foreground: #0f172a;
   --color-primary: #7c3aed;
-  --color-primary-soft: #f3e8ff;
+  --color-primary-soft: #f5f0ff;
   --color-secondary: #6366f1;
   --color-accent: #ec4899;
-  --color-muted: #f7f3fd;
-  --color-border: #efe7fc;
+  --color-muted: #f8f7fc;
+  --color-border: #e8e4f0;
   --color-surface: #ffffff;
   --font-display: 'Space Grotesk', sans-serif;
   --font-body: 'DM Sans', sans-serif;
@@ -34,12 +34,12 @@
 /* ---- Dark Mode ---- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b0618;
-    --foreground: #ede9fe;
-    --color-primary-soft: #1e103d;
-    --color-muted: #120a24;
-    --color-border: #1e1340;
-    --color-surface: #0f0a1e;
+    --background: #13111c;
+    --foreground: #e4e0f0;
+    --color-primary-soft: #2a2048;
+    --color-muted: #1a1728;
+    --color-border: #2a2540;
+    --color-surface: #1a1728;
   }
 }
 
