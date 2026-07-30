@@ -53,6 +53,23 @@ export function CalendarPanel({ profileId }: { profileId: string }) {
     fetchEvents();
   }, [fetchEvents]);
 
+  // Auto-dispatch polling: check every 30s for meetings that should start
+  useEffect(() => {
+    if (!connected) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/calendar/auto-dispatch');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.dispatched > 0) {
+            fetchEvents(); // refresh to show LIVE badge
+          }
+        }
+      } catch { /* best effort */ }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [connected, fetchEvents]);
+
   async function handleSave(
     event: CalendarEvent,
     notes: string,
