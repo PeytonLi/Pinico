@@ -156,3 +156,46 @@ behaviour for billing.
   [docs.recall.ai/docs/real-time-websocket-endpoints](https://docs.recall.ai/docs/real-time-websocket-endpoints).
   Not used — HANDOFF's webhook-based design is simpler for a 24h build and
   needs no persistent connection to manage.
+
+## 7. Output Audio payload cap — MEASURED (2026-07-30)
+
+HANDOFF-V2 §10 listed "Output Audio has undocumented duration limits" as a
+guessed risk. Measured against the live API, it is **not** a duration limit:
+
+```
+POST /bot/{id}/output_audio/  with a 100.6s / 1574KB mp3
+-> 400 {"b64_data":["Ensure this field has no more than 1835008 characters."]}
+```
+
+- Hard cap: **1,835,008 base64 characters** (~1.31 MiB of mp3), which at the
+  ElevenLabs bitrate we use is roughly **88 seconds** of speech. The real limit
+  is bytes, so a lower bitrate buys more seconds.
+- Over the cap it **returns 400 and plays nothing — it does not truncate.**
+  `agent.ts` catches the throw and falls back to a chat message, so the failure
+  is silent in the meeting. `outputAudio()` now guards this explicitly with the
+  size in the error message.
+- A 3.2s clip plays fine (verified). Agent replies are prompted to ~2 sentences,
+  so the cap is never approached in practice.
+
+**Not implemented:** chunking long replies across multiple `outputAudio` calls.
+Unnecessary while replies stay short; the guard names it as the upgrade path.
+
+## 8. `recallai_streaming` options — RESOLVED (2026-07-30)
+
+§3 flagged this object's shape as unknown. Determined by probing the live API:
+
+- `mode`: only two valid values — `prioritize_accuracy` (**the default**) and
+  `prioritize_low_latency`. Anything else returns
+  `"<value>" is not a valid choice.`
+- `language_code`: defaults to `auto`, but low-latency mode **rejects** it —
+  `"language_code other than english is not supported in low latency mode"`.
+  So `prioritize_low_latency` requires `language_code: "en"`.
+
+**Why this matters:** on the default `prioritize_accuracy`, measured
+`transcript.data` events spanned up to **170 seconds of speech** before being
+delivered, with ~2.2s minimum lag even for a short isolated question. That
+delay happens entirely before our code runs and was the dominant source of the
+agent feeling slow. `createBot` now sets low-latency mode explicitly.
+
+Trade-off: accuracy mode is better for non-English or transcript quality. Switch
+back if a demo needs either.

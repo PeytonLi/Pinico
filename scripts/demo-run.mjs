@@ -41,16 +41,20 @@ const { error: cErr } = await db.from('agent_context').upsert(
     user_id: profile.id,
     current_work:
       'Shipping Pinico V2, the voice agent that joins standups. Finished the DeepSeek blocker extraction, automatic Jira ticket creation, and ElevenLabs voice output through Recall.',
+    // Keep this TRUE. Whatever it says here gets spoken as fact and filed as a
+    // Jira ticket, so a stale blocker means the demo lies and files junk tickets.
+    // The old value ("unknown Output Audio duration limits") was measured and
+    // resolved: the cap is a 1,835,008-char b64 payload, ~88s of speech.
     active_blockers:
-      'Blocked on Recall.ai Output Audio duration limits — unclear whether long spoken responses get truncated, so I cannot size the agent replies yet.',
+      'Only real risk left is the ngrok tunnel: if it restarts the public URL changes, and bot dispatch then fails with a 403 until the environment is updated. Looking at a stable host for the demo.',
     recent_wins:
-      'Got the bot speaking aloud in a live Google Meet today, and spoken blockers now create real Jira tickets automatically.',
+      'Got the bot speaking aloud in a live Google Meet, spoken blockers now file real Jira tickets, and I measured the Recall audio payload cap at about 88 seconds so replies can be sized safely.',
     communication_style: 'Direct and concise, friendly, no corporate filler.',
     delegation_instructions:
       'If asked about the frontend, Auth0, or the dashboard, say Peyton has not touched those today and will follow up.',
     topics_to_track: 'Recall.ai, ElevenLabs, Jira integration, Stripe billing, DeepSeek',
-    questions_for_team: 'Does anyone know if Recall caps the length of an output audio clip?',
-    meeting_goal: 'Report V2 progress and flag the Output Audio duration unknown.',
+    questions_for_team: 'Does anyone have a stable host I can point the webhook at instead of a tunnel?',
+    meeting_goal: 'Report V2 progress and flag the tunnel stability risk.',
     updated_at: new Date().toISOString(),
   },
   { onConflict: 'user_id' }

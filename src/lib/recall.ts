@@ -192,7 +192,26 @@ export async function getBotDuration(botId: string): Promise<number> {
  * Sends a base64-encoded MP3. The `automatic_audio_output` config in
  * createBot() must be present for this endpoint to work.
  */
+/**
+ * Recall's hard cap on the `b64_data` field, measured against the live API
+ * (HANDOFF-V2 §10 guessed at a "duration limit"; it is actually a payload size
+ * limit). At our ElevenLabs bitrate this is roughly 88 seconds of speech.
+ *
+ * Over the cap Recall returns 400 and plays NOTHING — it does not truncate. The
+ * agent prompt keeps replies to ~2 sentences, so this is never approached in
+ * practice; the guard exists so that if it ever is, the log says why instead of
+ * looking like a generic API failure.
+ */
+const OUTPUT_AUDIO_MAX_B64 = 1835008;
+
 export async function outputAudio(botId: string, mp3Base64: string): Promise<void> {
+  if (mp3Base64.length > OUTPUT_AUDIO_MAX_B64) {
+    throw new Error(
+      `outputAudio: clip too large — ${mp3Base64.length} b64 chars exceeds Recall's ` +
+        `${OUTPUT_AUDIO_MAX_B64} limit (~88s of speech). Recall would 400 and play ` +
+        `nothing. Shorten the reply or split it across multiple outputAudio calls.`
+    );
+  }
   const { base, key } = getConfig();
   await recallFetch(base, key, `/bot/${encodeURIComponent(botId)}/output_audio/`, {
     method: 'POST',
