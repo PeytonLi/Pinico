@@ -48,6 +48,7 @@ next-env.d.ts
 .cursorignore
 .pi-subagents/
 .projects/
+auth0-config.json
 
 .projects/cache
 .projects/vault
