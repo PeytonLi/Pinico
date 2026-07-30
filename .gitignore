@@ -47,8 +47,10 @@ next-env.d.ts
 .cursor/
 .cursorignore
 .pi-subagents/
-.projects/
 auth0-config.json
+
+
+.vercel
 
 .projects/cache
 .projects/vault

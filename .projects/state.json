@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "providers": {
+    "auth0": {
+      "name": "Auth0"
+    },
+    "supabase": {
+      "name": "Supabase"
+    }
+  },
+  "resources": {
+    "auth0-client": {
+      "name": "auth0-client",
+      "providerName": "Auth0",
+      "serviceId": "client"
+    },
+    "auth0-plan": {
+      "name": "auth0-plan",
+      "providerName": "Auth0",
+      "serviceId": "free"
+    },
+    "Pinico": {
+      "name": "Pinico",
+      "providerName": "Supabase",
+      "serviceId": "project"
+    },
+    "supabase-plan": {
+      "name": "supabase-plan",
+      "providerName": "Supabase",
+      "serviceId": "free"
+    }
+  }
+}

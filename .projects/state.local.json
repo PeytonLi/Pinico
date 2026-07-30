@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "project": {
+    "catalog": "prod",
+    "initializedAt": "2026-07-30T21:19:17.824Z",
+    "merchantDisplayName": "Pinico",
+    "merchantId": "acct_1Tz1HYLsfuVADzqL",
+    "projectId": "project_61V8PJevcgM7q5SWj16V8PEu78SQhh1uw9Ym1zUnQHK4",
+    "projectName": "Pinico"
+  },
+  "providers": {
+    "auth0": {
+      "accountRequestId": "facctrq_61V8PTJRa78lnJlXW16V8PEu78SQhh1uw9Ym1zUnQ3Sy",
+      "configuration": {
+        "locality": "us",
+        "naming_prefix": "uspinico"
+      },
+      "linkedAt": "2026-07-30T21:29:21.244Z",
+      "providerId": "prvdr_61UVctyxfLOj4FpVw5Bmi",
+      "providerName": "Auth0",
+      "redirectUrl": null,
+      "requestedAt": "2026-07-30T21:29:21.244Z",
+      "status": "complete"
+    },
+    "supabase": {
+      "accountRequestId": "fprvcnn_61V8PN4PfMzY8anp716V8PEu78SQhh1uw9Ym1zUnQDRw",
+      "configuration": {},
+      "linkedAt": "2026-07-30T21:22:50.563Z",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "redirectUrl": null,
+      "requestedAt": "2026-07-30T21:22:50.563Z",
+      "status": "complete"
+    }
+  },
+  "resources": {
+    "auth0-client": {
+      "configuration": {
+        "name": "Pinico"
+      },
+      "createdAt": "2026-07-30T21:29:42.796Z",
+      "lastRevealedAt": "2026-07-30T21:29:42.985Z",
+      "lastStatus": "complete",
+      "name": "auth0-client",
+      "providerId": "prvdr_61UVctyxfLOj4FpVw5Bmi",
+      "providerName": "Auth0",
+      "resourceId": "fres_61V8PTcj0WgTQFehc16V8PEu78SQhh1uw9Ym1zUnQRCa",
+      "serviceId": "client"
+    },
+    "auth0-plan": {
+      "configuration": {},
+      "createdAt": "2026-07-30T21:29:29.763Z",
+      "lastRevealedAt": "2026-07-30T21:29:29.956Z",
+      "lastStatus": "complete",
+      "name": "auth0-plan",
+      "providerId": "prvdr_61UVctyxfLOj4FpVw5Bmi",
+      "providerName": "Auth0",
+      "resourceId": "fres_61V8PTTxpbKxgJWam16V8PEu78SQhh1uw9Ym1zUnQ2e8",
+      "serviceId": "free"
+    },
+    "Pinico": {
+      "configuration": {
+        "name": "Pinico",
+        "region": "americas"
+      },
+      "createdAt": "2026-07-30T21:31:09.630Z",
+      "lastRevealedAt": "2026-07-30T21:31:10.021Z",
+      "lastStatus": "complete",
+      "name": "Pinico",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "resourceId": "fres_61V8PUpuY6zNdTVPg16V8PEu78SQhh1uw9Ym1zUnQL3o",
+      "serviceId": "project"
+    },
+    "supabase-plan": {
+      "configuration": {},
+      "createdAt": "2026-07-30T21:23:18.078Z",
+      "lastRevealedAt": "2026-07-30T21:23:18.216Z",
+      "lastStatus": "complete",
+      "name": "supabase-plan",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "resourceId": "fres_61V8PNFftL35rV6mD16V8PEu78SQhh1uw9Ym1zUnQ9pY",
+      "serviceId": "free"
+    }
+  }
+}
