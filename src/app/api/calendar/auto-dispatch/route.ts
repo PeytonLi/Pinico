@@ -12,8 +12,8 @@ import { getPersona } from '@/lib/persona';
  */
 export async function GET() {
   const now = new Date();
-  const windowStart = new Date(now.getTime() - 2 * 60 * 1000); // 2 min ago
-  const windowEnd = new Date(now.getTime() + 2 * 60 * 1000);   // 2 min from now
+  const windowStart = new Date(now.getTime() - 2 * 60 * 1000); // 2 min before
+  const windowEnd = new Date(now.getTime() + 5 * 60 * 1000);   // up to 5 min after
 
   // Find events: auto_dispatch ON, not yet dispatched, meeting URL present,
   // start time within ±2 min window.
