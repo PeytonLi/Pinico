@@ -155,10 +155,13 @@ export async function getTodayEvents(userId: string): Promise<CalendarEvent[]> {
   const token = await getStoredToken(userId);
   if (!token) return [];
 
-  // Today, local timezone
+  // Today, but wide enough to work regardless of server timezone (Vercel = UTC).
+  // Midnight UTC minus 12h covers UTC-12; midnight UTC plus 36h covers UTC+14.
+  // ponytail: 48h window. Upgrade to per-user timezone from profile if needed.
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  const utcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const startOfDay = new Date(utcMidnight.getTime() - 12 * 60 * 60 * 1000);
+  const endOfDay = new Date(utcMidnight.getTime() + 36 * 60 * 60 * 1000);
 
   const params = new URLSearchParams({
     timeMin: startOfDay.toISOString(),
