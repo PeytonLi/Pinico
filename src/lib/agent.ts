@@ -3,7 +3,7 @@ import { getPersona } from './persona';
 import { runAgentTurn, extractBlocker } from './llm';
 import { textToSpeech } from './elevenlabs';
 import { outputAudio, sendChatMessage } from './recall';
-import { createJiraBlockerTicket } from './jira';
+import { createJiraBlockerTicket, getOpenIssueKeys } from './jira';
 import { dedupeKey } from './buffer';
 import { findDuplicate } from './dedupe';
 import { loadHistory, appendHistory } from './history';
@@ -162,7 +162,19 @@ async function createTicketFromBlocker(
     .order('created_at', { ascending: false })
     .limit(100);
 
-  const existing = (prior ?? []) as unknown as { summary: string; jira_ticket_key: string }[];
+  const allPrior = (prior ?? []) as unknown as { summary: string; jira_ticket_key: string }[];
+
+  // Only suppress against tickets still OPEN in Jira. Our tickets table has no
+  // notion of Jira status, so without this a blocker whose ticket was closed
+  // could never be filed again even if it came back.
+  const open = await getOpenIssueKeys(allPrior.map((t) => t.jira_ticket_key));
+  const existing = allPrior.filter((t) => open.has(t.jira_ticket_key));
+  if (allPrior.length !== existing.length) {
+    console.log(
+      `[agent] ignoring ${allPrior.length - existing.length} closed ticket(s) when checking for duplicates`
+    );
+  }
+
   const dup = findDuplicate(
     blocker.summary,
     existing.map((t) => t.summary)

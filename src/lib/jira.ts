@@ -89,3 +89,45 @@ export async function createJiraBlockerTicket({
   const data = await res.json();
   return { id: data.id, key: data.key, self: data.self };
 }
+
+/**
+ * Of the given issue keys, which are still OPEN (statusCategory != Done).
+ *
+ * Needed because duplicate suppression reads our own `tickets` table, which has
+ * no idea what happened in Jira. Without this, closing a blocker's ticket meant
+ * the agent stayed silent about it forever — a resolved blocker that comes back
+ * should file a fresh ticket.
+ *
+ * Fails open: on any error every key is treated as open, so a Jira outage makes
+ * us over-suppress (a missing ticket) rather than spam duplicates.
+ */
+export async function getOpenIssueKeys(keys: string[]): Promise<Set<string>> {
+  const clean = keys.filter((k) => /^[A-Z][A-Z0-9]*-\d+$/.test(k));
+  if (clean.length === 0) return new Set();
+
+  const host = process.env.JIRA_HOST_NAME;
+  const email = process.env.JIRA_USER_EMAIL;
+  const token = process.env.JIRA_API_TOKEN;
+  if (!host || !email || !token) return new Set(clean);
+
+  const auth = Buffer.from(`${email}:${token}`).toString('base64');
+  const jql = `key in (${clean.join(',')}) AND statusCategory != Done`;
+  const url =
+    `https://${host}/rest/api/3/search/jql` +
+    `?jql=${encodeURIComponent(jql)}&fields=key&maxResults=100`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      console.error(`[jira] open-key lookup failed ${res.status}, treating all as open`);
+      return new Set(clean);
+    }
+    const body = (await res.json()) as { issues?: { key: string }[] };
+    return new Set((body.issues ?? []).map((i) => i.key));
+  } catch (err) {
+    console.error('[jira] open-key lookup error, treating all as open:', err);
+    return new Set(clean);
+  }
+}
