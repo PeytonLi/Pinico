@@ -1,4 +1,5 @@
 import { getOrCreateProfile } from '@/lib/profile';
+import { CheckoutButton } from '@/components/checkout-button';
 
 export default async function Home() {
   const profile = await getOrCreateProfile();
@@ -139,6 +140,7 @@ export default async function Home() {
           <p className="mt-1 text-sm text-foreground/50">
             + $0.15/min beyond base &middot; No seat licenses &middot; Cancel anytime
           </p>
+          <CheckoutButton />
         </div>
       </section>
 
