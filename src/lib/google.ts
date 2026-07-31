@@ -211,6 +211,15 @@ export async function getTodayEvents(userId: string): Promise<CalendarEvent[]> {
         event.auto_dispatch = (n.auto_dispatch as boolean) ?? false;
         event.dispatched = (n.dispatched as boolean) ?? false;
         event.notes_updated_at = n.updated_at as string | undefined;
+        // If calendar now has a meeting URL but our saved row doesn't, update it
+        if (event.meeting_url && (n as Record<string, unknown>).meeting_url !== event.meeting_url) {
+          getDb()
+            .from('calendar_notes')
+            .update({ meeting_url: event.meeting_url, updated_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .eq('event_id', event.event_id)
+            .then((r) => { if (r.error) console.error('Failed to sync meeting_url', r.error); });
+        }
       }
     }
   }
