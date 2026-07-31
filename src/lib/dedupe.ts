@@ -39,25 +39,42 @@ export function contentTokens(summary: string): Set<string> {
   );
 }
 
+function sharedCount(a: Set<string>, b: Set<string>): number {
+  let n = 0;
+  for (const t of a) if (b.has(t)) n++;
+  return n;
+}
+
 /**
- * Jaccard overlap of content words, 0..1.
+ * Overlap coefficient of content words, 0..1: shared / size of the smaller set.
  *
- * ponytail: bag-of-words overlap, no embeddings. It cannot tell "Auth0 webhook
- * is down" from "Auth0 webhook is fixed", and it will not match two wordings
- * that share no vocabulary. Upgrade to embedding cosine similarity if either
- * shows up in practice.
+ * NOT Jaccard. Jaccard divides by the union, so it collapses whenever the two
+ * summaries differ in length — real data measured 0.18-0.44 for tickets that
+ * were obviously the same blocker ("Webhook tunnel instability" vs "Webhook
+ * points at ngrok tunnel, URL changes on restart" can only ever reach 2/8).
+ * Overlap asks the useful question instead: is the shorter summary essentially
+ * contained in the longer one?
+ *
+ * ponytail: bag-of-words, no embeddings. Cannot tell "Auth0 webhook is down"
+ * from "Auth0 webhook is fixed", and won't match two wordings sharing no
+ * vocabulary. Upgrade to embedding cosine similarity if either bites.
  */
 export function similarity(a: string, b: string): number {
   const ta = contentTokens(a);
   const tb = contentTokens(b);
   if (ta.size === 0 || tb.size === 0) return 0;
-  let shared = 0;
-  for (const t of ta) if (tb.has(t)) shared++;
-  return shared / (ta.size + tb.size - shared);
+  return sharedCount(ta, tb) / Math.min(ta.size, tb.size);
 }
 
-/** Above this, two summaries are treated as the same blocker. */
-export const DUPLICATE_THRESHOLD = 0.5;
+/** Above this overlap, two summaries are treated as the same blocker. */
+export const DUPLICATE_THRESHOLD = 0.6;
+
+/**
+ * At least this many shared content words, regardless of ratio. Without it a
+ * one-word summary ("Webhook") would be "fully contained" in everything and
+ * suppress unrelated blockers.
+ */
+const MIN_SHARED_TOKENS = 2;
 
 /**
  * The already-filed summary this blocker duplicates, or null if it's genuinely
@@ -65,9 +82,11 @@ export const DUPLICATE_THRESHOLD = 0.5;
  * one) so a standing blocker isn't refiled every standup.
  */
 export function findDuplicate(summary: string, existing: string[]): string | null {
+  const tokens = contentTokens(summary);
   let best: string | null = null;
   let bestScore = 0;
   for (const candidate of existing) {
+    if (sharedCount(tokens, contentTokens(candidate)) < MIN_SHARED_TOKENS) continue;
     const score = similarity(summary, candidate);
     if (score >= DUPLICATE_THRESHOLD && score > bestScore) {
       best = candidate;

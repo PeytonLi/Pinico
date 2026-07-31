@@ -43,6 +43,41 @@ test('empty / no history cases', () => {
   assert.equal(findDuplicate('', FILED), null);
 });
 
+// REGRESSION: these five real tickets (KAN-8..12) were all the same tunnel
+// blocker, filed on five separate runs. Jaccard scored them 0.18-0.44 and let
+// every one through; overlap coefficient is what actually catches them.
+const TUNNEL_FILED = [
+  'Webhook tunnel instability',
+  'Webhook tunnel instability breaks bot dispatch',
+  'Webhook uses ngrok tunnel that breaks on restart',
+  'Webhook relies on ngrok tunnel',
+];
+
+test('catches the tunnel blocker restated at very different lengths', () => {
+  for (const restated of [
+    'Webhook points at ngrok tunnel, URL changes on restart',
+    'ngrok tunnel URL keeps changing so the webhook breaks',
+    'Webhook tunnel instability',
+  ]) {
+    assert.ok(findDuplicate(restated, TUNNEL_FILED) !== null, `should suppress: ${restated}`);
+  }
+});
+
+test('a short summary is not "contained in" everything', () => {
+  // One shared token must never be enough, or "Webhook" suppresses all webhook work.
+  assert.equal(findDuplicate('Webhook', TUNNEL_FILED), null);
+  assert.equal(findDuplicate('Stripe meter missing in test mode', TUNNEL_FILED), null);
+});
+
+test('different problems on the same component stay separate', () => {
+  assert.equal(
+    findDuplicate('Jira ticket priority field rejected on create', [
+      'Jira ticket creation returns 400',
+    ]),
+    null
+  );
+});
+
 test('similarity is bounded and ordered sensibly', () => {
   const same = similarity('Auth0 staging webhook returning 500', 'Auth0 staging webhook 500 error');
   const diff = similarity('Auth0 staging webhook returning 500', 'Stripe meter events rejected');
