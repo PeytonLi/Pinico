@@ -241,33 +241,40 @@ export async function runAgentTurn(
   const systemPrompt = buildAgentPrompt(persona);
   const historyText = formatHistoryForPrompt(history.slice(-10));
 
-  const completion = await client.chat.completions.create({
-    model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      {
-        role: 'user',
-        content: `Conversation so far:\n${historyText}\n\nLatest transcript segment:\n${transcript}\n\nYou are the voice agent. Decide: should you speak? What do you say? Any blockers? Return a single json object matching this shape:\n${ACTION_BLOCKER_SHAPE}`,
-      },
-    ],
-    response_format: { type: 'json_object' },
-    // 500 was too low and silently broke the agent in a live meeting: the model
-    // spent the budget narrating `thinking`, the JSON was cut off mid-string,
-    // JSON.parse threw, and a perfectly good spoken answer was discarded.
-    // Truncation is the most likely failure of json_object mode — leave headroom.
-    max_tokens: 1200,
-  });
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    {
+      role: 'user' as const,
+      content: `Conversation so far:\n${historyText}\n\nLatest transcript segment:\n${transcript}\n\nYou are the voice agent. Decide: should you speak? What do you say? Any blockers? Return a single json object matching this shape:\n${ACTION_BLOCKER_SHAPE}`,
+    },
+  ];
 
-  const content = completion.choices[0]?.message?.content?.trim() ?? '';
-  const finish = completion.choices[0]?.finish_reason;
-  if (finish === 'length') {
-    // Makes the above failure obvious instead of looking like bad JSON.
-    console.error('[llm] runAgentTurn: response TRUNCATED (finish_reason=length)');
+  // DeepSeek's JSON mode intermittently returns EMPTY content — their docs
+  // acknowledge it and suggest re-prompting. It hit us mid-demo: the agent went
+  // silent on a question it answers fine on a retry (verified: the same
+  // transcript succeeded 3/3 immediately after). One retry, since a second
+  // ~1.5s call is far cheaper than the agent saying nothing when addressed.
+  let content = '';
+  for (let attempt = 1; attempt <= 2 && !content; attempt++) {
+    const completion = await client.chat.completions.create({
+      model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+      messages,
+      response_format: { type: 'json_object' },
+      // 500 was too low and silently broke the agent in a live meeting: the
+      // model spent the budget narrating `thinking`, the JSON was cut off
+      // mid-string, JSON.parse threw, and a good spoken answer was discarded.
+      max_tokens: 1200,
+    });
+    content = completion.choices[0]?.message?.content?.trim() ?? '';
+    if (completion.choices[0]?.finish_reason === 'length') {
+      console.error('[llm] runAgentTurn: response TRUNCATED (finish_reason=length)');
+    }
+    if (!content) {
+      console.error(`[llm] runAgentTurn: empty response (attempt ${attempt}/2)`);
+    }
   }
-  if (!content) {
-    console.error('[llm] runAgentTurn: empty response');
-    return NOOP_ACTION;
-  }
+
+  if (!content) return NOOP_ACTION;
 
   // Strip code fences — JSON mode shouldn't add them, but DeepSeek sometimes does
   const cleaned = content
