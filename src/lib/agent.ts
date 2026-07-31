@@ -5,6 +5,7 @@ import { textToSpeech } from './elevenlabs';
 import { outputAudio, sendChatMessage } from './recall';
 import { createJiraBlockerTicket } from './jira';
 import { dedupeKey } from './buffer';
+import { findDuplicate } from './dedupe';
 import { loadHistory, appendHistory } from './history';
 import type { AgentAction, ConversationTurn, ExtractedBlocker } from './types';
 
@@ -130,6 +131,16 @@ export async function processTranscript(
 
 // ---- ticket pipeline (shared between agent and fallback paths) ----
 
+/** The profile that dispatched this meeting's bot, for scoping duplicate checks. */
+async function ownerOf(meetingId: string): Promise<string | null> {
+  const { data } = await getDb()
+    .from('meetings')
+    .select('user_id')
+    .eq('id', meetingId)
+    .single();
+  return (data?.user_id as string) ?? null;
+}
+
 async function createTicketFromBlocker(
   meetingId: string,
   botId: string,
@@ -138,9 +149,35 @@ async function createTicketFromBlocker(
   const db = getDb();
   const key = dedupeKey(blocker.summary);
 
+  // Cross-meeting duplicate check. The unique index below is scoped to
+  // (meeting_id, dedupe_key), so on its own it only stops repeats inside a
+  // single meeting — a standing blocker got a fresh Jira ticket every standup,
+  // and slight rewording ("duration limit" vs "limits") slipped through even
+  // within one meeting. Compare against what this user has already filed.
+  const { data: prior } = await db
+    .from('tickets')
+    .select('summary, jira_ticket_key, meetings!inner(user_id)')
+    .eq('meetings.user_id', await ownerOf(meetingId))
+    .not('jira_ticket_key', 'eq', '')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const existing = (prior ?? []) as unknown as { summary: string; jira_ticket_key: string }[];
+  const dup = findDuplicate(
+    blocker.summary,
+    existing.map((t) => t.summary)
+  );
+  if (dup) {
+    const match = existing.find((t) => t.summary === dup);
+    console.log(
+      `[agent] blocker already filed as ${match?.jira_ticket_key ?? '(unknown)'} — not refiling: "${blocker.summary}" ~= "${dup}"`
+    );
+    return;
+  }
+
   // Claim the dedupe key before calling Jira. The unique index on
-  // (meeting_id, dedupe_key) prevents duplicate tickets for the same
-  // spoken blocker.
+  // (meeting_id, dedupe_key) is the backstop against two concurrent flushes
+  // racing on the same blocker within this meeting.
   const { error: claimErr } = await db
     .from('tickets')
     .insert({
