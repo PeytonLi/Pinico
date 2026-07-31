@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/supabase';
 import { createBot, sendChatMessage } from '@/lib/recall';
+import { getPersona } from '@/lib/persona';
 
 /**
  * Auto-dispatch endpoint — called by the dashboard polling.
@@ -49,9 +50,23 @@ export async function GET() {
         .select('id')
         .single();
 
-      // 3. If user left notes, send them as the bot's first message
+      // 3. Build intro message — notes first, then fall back to persona context
+      let intro: string | null = null;
       if (event.notes?.trim()) {
-        const intro = `[Auto-dispatched agent for ${event.meeting_title}]\n\n${event.notes}`;
+        intro = `[Auto-dispatched agent for ${event.meeting_title}]\n\n${event.notes}`;
+      } else {
+        const persona = await getPersona(event.user_id);
+        if (persona) {
+          intro = [
+            `[Auto-dispatched agent for ${event.meeting_title}]`,
+            `I'm standing in for ${persona.user_name}.`,
+            persona.current_work ? `Working on: ${persona.current_work}` : '',
+            persona.active_blockers ? `Blocked on: ${persona.active_blockers}` : '',
+            persona.meeting_goal ? `Goal: ${persona.meeting_goal}` : '',
+          ].filter(Boolean).join('\n');
+        }
+      }
+      if (intro) {
         try {
           await sendChatMessage(bot.bot_id, intro);
         } catch {
