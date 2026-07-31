@@ -9,6 +9,8 @@ export type Profile = {
   email: string;
   full_name: string | null;
   jira_account_id: string | null;
+  stripe_subscription_status: string | null;
+  stripe_customer_id: string | null;
   created_at: string;
 };
 

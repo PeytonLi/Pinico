@@ -12,6 +12,11 @@ export function CheckoutButton() {
     try {
       const res = await fetch('/api/checkout', { method: 'POST' });
       const data = await res.json();
+      if (res.status === 401) {
+        // Not logged in — redirect to login, then come back
+        window.location.href = '/auth/login';
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       } else {

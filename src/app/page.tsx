@@ -1,8 +1,10 @@
 import { getOrCreateProfile } from '@/lib/profile';
+import { redirect } from 'next/navigation';
 import { CheckoutButton } from '@/components/checkout-button';
 
 export default async function Home() {
   const profile = await getOrCreateProfile();
+  if (profile) redirect('/dashboard');
 
   return (
     <main className="flex flex-col relative overflow-hidden">

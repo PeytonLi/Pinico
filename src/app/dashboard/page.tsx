@@ -10,6 +10,11 @@ export default async function DashboardPage() {
   const profile = await getOrCreateProfile();
   if (!profile) redirect('/auth/login');
 
+  // Paywall — redirect to pricing if not subscribed
+  if (profile.stripe_subscription_status !== 'active') {
+    redirect('/pricing');
+  }
+
   const { data: ctx } = await getDb()
     .from('agent_context')
     .select('updated_at')
